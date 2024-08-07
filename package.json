@@ -1,0 +1,22 @@
+{
+  "name": "cb-eventing-watcher",
+  "version": "1.0.0",
+  "module": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "build": "bun build ./src/index.ts --outdir ./dist"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^18.15.11",
+    "@types/node-cron": "^3.0.7",
+    "bun-types": "latest",
+    "typescript": "^5.0.4"
+  },
+  "dependencies": {
+    "@slack/webhook": "^7.0.2",
+    "axios": "^1.7.3",
+    "node-cron": "^3.0.3"
+  }
+}
