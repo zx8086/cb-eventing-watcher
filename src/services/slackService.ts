@@ -5,26 +5,28 @@ import {
   type IncomingWebhookSendArguments,
 } from "@slack/webhook";
 import config from "../config/config.ts";
-
 import { AlertSeverity, type AlertOptions } from "../types";
+import { log, error } from "../utils/logger.ts";
 
 const slackWebhook = new IncomingWebhook(config.SLACK_WEBHOOK_URL);
+
+const colorMap = {
+  [AlertSeverity.INFO]: "#36a64f", // Green
+  [AlertSeverity.WARNING]: "#ffa500", // Orange
+  [AlertSeverity.ERROR]: "#ff0000", // Red
+};
 
 export async function sendSlackAlert(
   message: string,
   options: AlertOptions = {},
-): Promise<void> {
+): Promise<boolean> {
   const {
     severity = AlertSeverity.INFO,
     functionName,
     additionalContext,
   } = options;
 
-  const colorMap = {
-    [AlertSeverity.INFO]: "#36a64f", // Green
-    [AlertSeverity.WARNING]: "#ffa500", // Orange
-    [AlertSeverity.ERROR]: "#ff0000", // Red
-  };
+  log(`Preparing to send Slack alert: ${message}`, { severity, functionName });
 
   const payload: IncomingWebhookSendArguments = {
     attachments: [
@@ -68,9 +70,20 @@ export async function sendSlackAlert(
 
   try {
     await slackWebhook.send(payload);
-  } catch (error) {
-    console.error("Failed to send Slack alert:", error);
+    log(`Successfully sent Slack alert: ${message}`);
+    return true;
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : "Unknown error";
+    error(`Failed to send Slack alert: ${message}`, { error: errorMessage });
+    return false;
   }
+}
+
+export function formatSlackMessage(
+  message: string,
+  severity: AlertSeverity,
+): string {
+  return `*${severity.toUpperCase()}*: ${message}`;
 }
 
 export { AlertSeverity };
