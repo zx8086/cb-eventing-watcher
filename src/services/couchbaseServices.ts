@@ -1,4 +1,6 @@
-import axios from "axios";
+// src/services/couchbaseService.ts
+
+import axios, { type AxiosInstance } from "axios";
 import config from "../config/config.ts";
 import type {
   CouchbaseFunction,
@@ -8,9 +10,18 @@ import type {
   DcpBacklogSize,
 } from "../types/index.ts";
 
+// Create an Axios instance with Basic Auth
+const axiosInstance: AxiosInstance = axios.create({
+  baseURL: config.COUCHBASE_HOST,
+  auth: {
+    username: config.COUCHBASE_USERNAME,
+    password: config.COUCHBASE_PASSWORD,
+  },
+});
+
 export async function getFunctionList(): Promise<string[]> {
-  const response = await axios.get<{ functions: string[] }>(
-    `${config.COUCHBASE_HOST}/api/v1/list/functions`,
+  const response = await axiosInstance.get<{ functions: string[] }>(
+    "/api/v1/list/functions",
   );
   return response.data.functions;
 }
@@ -18,8 +29,8 @@ export async function getFunctionList(): Promise<string[]> {
 export async function checkFunctionStatus(
   functionName: string,
 ): Promise<FunctionStatus> {
-  const response = await axios.get<FunctionStatus>(
-    `${config.COUCHBASE_HOST}/api/v1/status/${functionName}`,
+  const response = await axiosInstance.get<FunctionStatus>(
+    `/api/v1/status/${functionName}`,
   );
   return response.data;
 }
@@ -27,8 +38,8 @@ export async function checkFunctionStatus(
 export async function checkExecutionStats(
   functionName: string,
 ): Promise<ExecutionStats> {
-  const response = await axios.get<ExecutionStats>(
-    `${config.COUCHBASE_HOST}/getExecutionStats?name=${functionName}`,
+  const response = await axiosInstance.get<ExecutionStats>(
+    `/getExecutionStats?name=${functionName}`,
   );
   return response.data;
 }
@@ -36,8 +47,8 @@ export async function checkExecutionStats(
 export async function checkFailureStats(
   functionName: string,
 ): Promise<FailureStats> {
-  const response = await axios.get<FailureStats>(
-    `${config.COUCHBASE_HOST}/getFailureStats?name=${functionName}`,
+  const response = await axiosInstance.get<FailureStats>(
+    `/getFailureStats?name=${functionName}`,
   );
   return response.data;
 }
@@ -45,8 +56,8 @@ export async function checkFailureStats(
 export async function checkDcpBacklogSize(
   functionName: string,
 ): Promise<DcpBacklogSize> {
-  const response = await axios.get<DcpBacklogSize>(
-    `${config.COUCHBASE_HOST}/getDcpEventsRemaining?name=${functionName}`,
+  const response = await axiosInstance.get<DcpBacklogSize>(
+    `/getDcpEventsRemaining?name=${functionName}`,
   );
   return response.data;
 }

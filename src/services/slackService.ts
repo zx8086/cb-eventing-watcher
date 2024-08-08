@@ -1,3 +1,5 @@
+// src/services/slackService.ts
+
 import { IncomingWebhook } from "@slack/webhook";
 import config from "../config/config.ts";
 
