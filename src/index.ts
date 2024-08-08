@@ -32,7 +32,7 @@ async function checkStats(): Promise<void> {
         );
       }
 
-      // You can add more checks here based on executionStats and failureStats
+      // More checks here based on executionStats and failureStats
       console.log("status", status);
       console.log("executionStats", executionStats);
       console.log("failureStats", failureStats);
