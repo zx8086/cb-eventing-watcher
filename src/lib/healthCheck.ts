@@ -1,7 +1,8 @@
 // src/healthCheck.ts
+
 import type { Server } from "bun";
-import { log, error } from "./utils/logger";
-import { getLatestFunctionStatuses } from "./database";
+import { log, error } from "$utils/index";
+import { getLatestFunctionStatuses } from "$lib/index";
 
 let isApplicationHealthy = true;
 
@@ -50,7 +51,6 @@ export function startHealthCheckServer(port: number = 8080): Server {
   return server;
 }
 
-// Error handling for the application itself
 process.on("uncaughtException", (err) => {
   error("Uncaught Exception", { error: err.message });
   setApplicationStatus(false);

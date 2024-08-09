@@ -6,7 +6,7 @@ import {
 } from "@slack/webhook";
 import config from "../config/config.ts";
 import { AlertSeverity, type AlertOptions } from "../types";
-import { log, error } from "../utils/logger.ts";
+import { log, error } from "$utils/index";
 
 const slackWebhook = new IncomingWebhook(config.SLACK_WEBHOOK_URL);
 
