@@ -9,4 +9,12 @@ export default {
   SLACK_WEBHOOK_URL: process.env.SLACK_WEBHOOK_URL || "",
   CRON_SCHEDULE: process.env.CRON_SCHEDULE || "0 * * * *",
   DCP_BACKLOG_THRESHOLD: Number(process.env.DCP_BACKLOG_THRESHOLD) || 1000,
+  openTelemetry: {
+    SERVICE_NAME: "Couchbase Eventing Service Watcher",
+    SERVICE_VERSION: "1.0.0",
+    DEPLOYMENT_ENVIRONMENT: "deveelopment",
+    OTLP_TRACES_ENDPOINT: "https://otel-http-traces.siobytes.com",
+    OTLP_METRICS_ENDPOINT: "https://otel-http-metrics.siobytes.com",
+    OTLP_LOGS_ENDPOINT: "https://otel-http-logs.siobytes.com",
+  },
 };
