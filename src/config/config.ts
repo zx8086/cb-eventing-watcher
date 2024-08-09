@@ -1,6 +1,7 @@
 // src/config/config.ts
 
 export default {
+  HEALTH_CHECK_PORT: 8080,
   COUCHBASE_HOST:
     process.env.COUCHBASE_HOST || "http://couchbase.example.com:8096",
   COUCHBASE_USERNAME: process.env.COUCHBASE_USERNAME || "",
