@@ -6,7 +6,6 @@ import { OpenTelemetryTransportV3 } from "@opentelemetry/winston-transport";
 import DailyRotateFile from "winston-daily-rotate-file";
 import path from "path";
 
-// Correctly reference the root directory
 const rootDir = path.join(__dirname, "..", "..");
 const logsDir = path.join(rootDir, "logs");
 

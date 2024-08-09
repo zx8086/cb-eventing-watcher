@@ -1,17 +1,29 @@
 // src/index.ts
 
 import cron from "node-cron";
-import config from "./config/config.js";
-import * as couchbaseService from "./services/couchbaseServices.ts";
-import { sendSlackAlert, AlertSeverity } from "./services/slackService.ts";
-import logger, { log, error, warn, debug } from "./utils/logger.ts";
-import { startHealthCheckServer, setApplicationStatus } from "./healthCheck.ts";
-import { updateFunctionStatus, removeOutdatedFunctions } from "./database.ts";
+import config from "$config/config.ts";
+import logger, { log, error, warn, debug } from "$utils/logger.ts";
+import {
+  startHealthCheckServer,
+  setApplicationStatus,
+  updateFunctionStatus,
+  removeOutdatedFunctions,
+} from "$lib/index.ts";
+
+import {
+  getFunctionList,
+  checkFunctionStatus,
+  checkExecutionStats,
+  checkFailureStats,
+  checkDcpBacklogSize,
+  sendSlackAlert,
+  AlertSeverity,
+} from "$services/index.ts";
 
 async function checkStats(): Promise<void> {
   log("Running checkStats...");
   try {
-    const functionList = await couchbaseService.getFunctionList();
+    const functionList = await getFunctionList();
     log(`Found ${functionList.length} functions`, {
       functionCount: functionList.length,
     });
@@ -22,13 +34,10 @@ async function checkStats(): Promise<void> {
     for (const functionName of functionList) {
       try {
         log(`Checking function: ${functionName}`, { function: functionName });
-        const status = await couchbaseService.checkFunctionStatus(functionName);
-        const executionStats =
-          await couchbaseService.checkExecutionStats(functionName);
-        const failureStats =
-          await couchbaseService.checkFailureStats(functionName);
-        const dcpBacklog =
-          await couchbaseService.checkDcpBacklogSize(functionName);
+        const status = await checkFunctionStatus(functionName);
+        const executionStats = await checkExecutionStats(functionName);
+        const failureStats = await checkFailureStats(functionName);
+        const dcpBacklog = await checkDcpBacklogSize(functionName);
 
         let functionHealthy = true;
         let statusMessage = "Function operating normally";

@@ -22,6 +22,15 @@
     "esModuleInterop": true,
     "outDir": "./dist",
     "rootDir": "./src",
+    "baseUrl": ".",
+    "paths": {
+      "$lib/*": ["src/lib/*"],
+      "$services/*": ["src/services/*"],
+      "$db/*": ["db/*"],
+      "$config/*": ["src/config/*"],
+      "$utils/*": ["src/utils/*"],
+      "$models/*": ["src/models/*"]
+    },
     "types": ["bun-types"],
 
     // Some stricter flags (disabled by default)
