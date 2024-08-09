@@ -8,7 +8,7 @@
     "build": "bun build ./src/index.ts --outdir ./dist"
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "^1.1.6",
     "@types/node": "^22.1.0",
     "@types/node-cron": "^3.0.7",
     "bun-types": "latest",
