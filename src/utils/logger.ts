@@ -1,11 +1,11 @@
 // src/utils/logger.ts
-//
+
 import winston from "winston";
 import { ecsFormat } from "@elastic/ecs-winston-format";
 import { OpenTelemetryTransportV3 } from "@opentelemetry/winston-transport";
 import DailyRotateFile from "winston-daily-rotate-file";
 import path from "path";
-import { loggerProvider } from "../instrumentation";
+import { logs } from "@opentelemetry/api-logs";
 
 const rootDir = path.join(__dirname, "..", "..");
 const logsDir = path.join(rootDir, "logs");
