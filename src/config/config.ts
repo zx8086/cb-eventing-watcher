@@ -12,9 +12,11 @@ export default {
   openTelemetry: {
     SERVICE_NAME: "Couchbase Eventing Service Watcher",
     SERVICE_VERSION: "1.0.0",
-    DEPLOYMENT_ENVIRONMENT: "deveelopment",
-    OTLP_TRACES_ENDPOINT: "https://otel-http-traces.siobytes.com",
-    OTLP_METRICS_ENDPOINT: "https://otel-http-metrics.siobytes.com",
-    OTLP_LOGS_ENDPOINT: "https://otel-http-logs.siobytes.com",
+    DEPLOYMENT_ENVIRONMENT: "development",
+    OTLP_TRACES_ENDPOINT: "http://192.168.0.9:4318/v1/traces",
+    OTLP_METRICS_ENDPOINT: "http://192.168.0.9:4318/v1/metrics",
+    OTLP_LOGS_ENDPOINT: "http://192.168.0.9:4318/v1/logs",
   },
 };
+
+//     OTLP_LOGS_ENDPOINT: "https://otel-http-logs.siobytes.com",

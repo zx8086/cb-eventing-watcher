@@ -1,5 +1,7 @@
 // src/instrumentation.ts
 
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { Resource } from "@opentelemetry/resources";
@@ -8,31 +10,38 @@ import {
   SEMRESATTRS_SERVICE_VERSION,
   SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
 } from "@opentelemetry/semantic-conventions";
+
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
+import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
+
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
-import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
-import { GraphQLInstrumentation } from "@opentelemetry/instrumentation-graphql";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
-import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
+
+import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
 import {
   LoggerProvider,
   SimpleLogRecordProcessor,
+  BatchLogRecordProcessor,
+  ConsoleLogRecordExporter,
 } from "@opentelemetry/sdk-logs";
 
-// Import your config file
+import { OpenTelemetryTransportV3 } from "@opentelemetry/winston-transport";
+import * as winston from "winston";
+import * as api from "@opentelemetry/api-logs";
+
 import config from "$config/config";
 
 // Set up diagnostics logging
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 
-const resourceAttributes = {
+const resource = new Resource({
   [SEMRESATTRS_SERVICE_NAME]: config.openTelemetry.SERVICE_NAME,
   [SEMRESATTRS_SERVICE_VERSION]: config.openTelemetry.SERVICE_VERSION,
   [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]:
     config.openTelemetry.DEPLOYMENT_ENVIRONMENT,
-};
+});
 
 // Create OTLP exporters
 const otlpTraceExporter = new OTLPTraceExporter({
@@ -50,33 +59,65 @@ const otlpLogExporter = new OTLPLogExporter({
   headers: { "Content-Type": "application/json" },
 });
 
-// Create and register LoggerProvider
-const loggerProvider = new LoggerProvider({
-  resource: new Resource(resourceAttributes),
+// Create and configure LoggerProvider
+export const loggerProvider = new LoggerProvider({
+  resource: resource,
 });
+
 loggerProvider.addLogRecordProcessor(
-  new SimpleLogRecordProcessor(otlpLogExporter),
+  new BatchLogRecordProcessor(otlpLogExporter),
 );
 
+// This is for the console logging
+
+// loggerProvider.addLogRecordProcessor(
+//   new SimpleLogRecordProcessor(new ConsoleLogRecordExporter()),
+// );
+
+api.logs.setGlobalLoggerProvider(loggerProvider);
+
 const sdk = new NodeSDK({
-  resource: new Resource(resourceAttributes),
+  resource: resource,
   traceExporter: otlpTraceExporter,
-  spanProcessor: new BatchSpanProcessor(otlpTraceExporter),
+  spanProcessors: [new BatchSpanProcessor(otlpTraceExporter)],
   metricReader: new PeriodicExportingMetricReader({
     exporter: otlpMetricExporter,
     exportIntervalMillis: 60000, // Export metrics every 60 seconds
   }),
   instrumentations: [
-    getNodeAutoInstrumentations(),
-    new HttpInstrumentation(),
-    new GraphQLInstrumentation({
-      allowValues: true,
-      depth: -1,
+    getNodeAutoInstrumentations({
+      "@opentelemetry/instrumentation-fs": { enabled: false },
+      "@opentelemetry/instrumentation-http": { enabled: false },
+      "@opentelemetry/instrumentation-winston": { enabled: true },
+    }),
+    new WinstonInstrumentation({
+      logHook: (_span, record) => {
+        record["resource.service.name"] = config.openTelemetry.SERVICE_NAME;
+      },
     }),
   ],
 });
 
+// Start the SDK synchronously
 sdk.start();
+
+console.log("OpenTelemetry SDK started");
+// You can create and use loggers after the SDK has started
+// const logger = loggerProvider.getLogger("example-logger");
+
+const logger = winston.createLogger({
+  level: "info",
+  transports: [
+    new winston.transports.Console(),
+    new OpenTelemetryTransportV3(),
+  ],
+});
+
+// logger.emit({
+//   severityNumber: 9, // INFO
+//   severityText: "INFO",
+//   body: "OpenTelemetry SDK initialized and logger is working",
+// });
 
 process.on("SIGTERM", () => {
   sdk
@@ -87,9 +128,3 @@ process.on("SIGTERM", () => {
     )
     .finally(() => process.exit(0));
 });
-
-// Example of creating a logger and logging a message
-const logger = loggerProvider.getLogger("example-logger");
-// logger.info('This is an example log message');
-
-export { loggerProvider };
