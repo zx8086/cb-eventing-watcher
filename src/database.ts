@@ -2,7 +2,7 @@
 import { Database } from "bun:sqlite";
 import { log, error } from "./utils/logger";
 
-const db = new Database("health_check.sqlite", { create: true });
+const db = new Database("./src/db/health_check.sqlite", { create: true });
 
 db.run(`
   CREATE TABLE IF NOT EXISTS function_status (
