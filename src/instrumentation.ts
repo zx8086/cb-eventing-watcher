@@ -23,7 +23,7 @@ import * as logsAPI from "@opentelemetry/api-logs";
 import config from "$config/config";
 
 // Set up diagnostics logging
-diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 
 // Create OTLP exporters
 const traceExporter = new OTLPTraceExporter({

@@ -197,7 +197,9 @@ async function startScheduler(): Promise<boolean> {
 }
 
 function simpleScheduler(): void {
-  const intervalMs = 5 * 60 * 1000; // 5 minutes in milliseconds
+  // const intervalMs = 5 * 60 * 1000; // 5 minutes in milliseconds
+  const intervalMs = 10 * 60 * 1000; // 10 minutes in milliseconds
+
   async function runCheckStats() {
     try {
       await checkStats();
