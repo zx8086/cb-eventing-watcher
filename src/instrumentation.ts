@@ -85,10 +85,11 @@ const sdk = new NodeSDK({
     getNodeAutoInstrumentations({
       "@opentelemetry/instrumentation-fs": { enabled: false },
       "@opentelemetry/instrumentation-http": { enabled: true },
-      "@opentelemetry/instrumentation-winston": { enabled: true },
+      "@opentelemetry/instrumentation-winston": { enabled: false },
     }),
     new WinstonInstrumentation({
       enabled: true,
+      logSeverity: 5,
       // disableLogSending: true,
       logHook: (_span, record) => {
         record["resource.service.name"] = config.openTelemetry.SERVICE_NAME;
