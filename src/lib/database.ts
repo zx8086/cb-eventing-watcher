@@ -5,32 +5,85 @@ import { trace, context, SpanStatusCode } from "@opentelemetry/api";
 
 const tracer = trace.getTracer("sqlite-database");
 
-const db = new Database("src/db/health_check.sqlite", { create: true });
+class TracedDatabase {
+  private db: Database;
 
-// Wrap the initial table creation in a span
-tracer.startActiveSpan("create_function_status_table", (span) => {
-  try {
-    db.run(`
-      CREATE TABLE IF NOT EXISTS function_status (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        function_name TEXT NOT NULL,
-        status TEXT NOT NULL,
-        message TEXT,
-        timestamp INTEGER NOT NULL
-      )
-    `);
-    span.setStatus({ code: SpanStatusCode.OK });
-  } catch (err) {
-    span.recordException(err as Error);
-    span.setStatus({
-      code: SpanStatusCode.ERROR,
-      message: (err as Error).message,
-    });
-    throw err;
-  } finally {
-    span.end();
+  constructor(filename: string, options?: object) {
+    this.db = new Database(filename, options);
   }
-});
+
+  query(sql: string, params?: any): any {
+    return tracer.startActiveSpan("db.query", (span) => {
+      try {
+        span.setAttribute("db.statement", sql);
+        if (params) {
+          span.setAttribute("db.params", JSON.stringify(params));
+        }
+        const result = this.db.query(sql).all(params);
+        span.setAttribute("db.result_count", result.length);
+        span.setStatus({ code: SpanStatusCode.OK });
+        return result;
+      } catch (err) {
+        span.recordException(err as Error);
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: (err as Error).message,
+        });
+        throw err;
+      } finally {
+        span.end();
+      }
+    });
+  }
+
+  run(sql: string, params?: any): any {
+    return tracer.startActiveSpan("db.run", (span) => {
+      try {
+        span.setAttribute("db.statement", sql);
+        if (params) {
+          span.setAttribute("db.params", JSON.stringify(params));
+        }
+        let result;
+        if (params === undefined) {
+          result = this.db.run(sql);
+        } else if (Array.isArray(params)) {
+          result = this.db.run(sql, ...params);
+        } else {
+          result = this.db.run(sql, params);
+        }
+        span.setAttribute("db.changes", result.changes);
+        span.setAttribute(
+          "db.lastInsertRowid",
+          result.lastInsertRowid.toString(),
+        );
+        span.setStatus({ code: SpanStatusCode.OK });
+        return result;
+      } catch (err) {
+        span.recordException(err as Error);
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: (err as Error).message,
+        });
+        throw err;
+      } finally {
+        span.end();
+      }
+    });
+  }
+}
+
+const db = new TracedDatabase("src/db/health_check.sqlite", { create: true });
+
+// Initialize the database
+db.run(`
+  CREATE TABLE IF NOT EXISTS function_status (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    function_name TEXT NOT NULL,
+    status TEXT NOT NULL,
+    message TEXT,
+    timestamp INTEGER NOT NULL
+  )
+`);
 
 export function updateFunctionStatus(
   functionName: string,
@@ -40,21 +93,12 @@ export function updateFunctionStatus(
   return tracer.startActiveSpan("updateFunctionStatus", (span) => {
     try {
       const timestamp = Date.now();
-      span.setAttribute("db.operation", "INSERT OR REPLACE");
-      span.setAttribute("db.function_name", functionName);
-      span.setAttribute("db.status", status);
-
       db.run(
         `
         INSERT OR REPLACE INTO function_status (function_name, status, message, timestamp)
-        VALUES ($functionName, $status, $message, $timestamp)
+        VALUES (?, ?, ?, ?)
       `,
-        {
-          $functionName: functionName,
-          $status: status,
-          $message: message,
-          $timestamp: timestamp,
-        },
+        [functionName, status, message, timestamp],
       );
 
       log(`Function status updated in database: ${functionName} - ${status}`);
@@ -78,21 +122,14 @@ export function updateFunctionStatus(
 export function getLatestFunctionStatuses() {
   return tracer.startActiveSpan("getLatestFunctionStatuses", (span) => {
     try {
-      span.setAttribute("db.operation", "SELECT");
-
-      const results = db
-        .query(
-          `
+      const results = db.query(`
         SELECT function_name, status, message, timestamp
         FROM function_status
         GROUP BY function_name
         HAVING MAX(timestamp)
         ORDER BY timestamp DESC
-      `,
-        )
-        .all();
+      `);
 
-      span.setAttribute("db.result_count", results.length);
       span.setStatus({ code: SpanStatusCode.OK });
       return results;
     } catch (err) {
@@ -115,9 +152,6 @@ export function removeOutdatedFunctions(currentFunctions: string[]) {
   return tracer.startActiveSpan("removeOutdatedFunctions", (span) => {
     try {
       const placeholders = currentFunctions.map(() => "?").join(",");
-      span.setAttribute("db.operation", "DELETE");
-      span.setAttribute("db.current_functions_count", currentFunctions.length);
-
       db.run(
         `
         DELETE FROM function_status
