@@ -1,4 +1,4 @@
-// src/index.ts
+/* src/index.ts */
 
 import cron from "node-cron";
 import config from "$config/config.ts";
@@ -123,7 +123,7 @@ async function checkStats(): Promise<void> {
           statusMessage,
         );
 
-        debug("Function check completed", {
+        debug(`Function ${functionName} check completed`, {
           function: functionName,
           status: status.app.composite_status,
           executionStats,

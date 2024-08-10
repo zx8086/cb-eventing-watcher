@@ -1,4 +1,5 @@
-// src/services/couchbaseService.ts
+/* src/services/couchbaseService.ts */
+
 import config from "../config/config.ts";
 import { log, error } from "../utils/logger.ts";
 import type {
