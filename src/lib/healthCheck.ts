@@ -15,6 +15,21 @@ let lastLoggedTime = 0;
 // New constant for the health check interval
 const HEALTH_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
+// Capture the start time
+const START_TIME = Bun.nanoseconds();
+
+function getUptime(): string {
+  const uptimeNs = Bun.nanoseconds() - START_TIME;
+  const uptimeMs = uptimeNs / 1_000_000; // Convert to milliseconds
+  const days = Math.floor(uptimeMs / (24 * 60 * 60 * 1000));
+  const hours = Math.floor(
+    (uptimeMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000),
+  );
+  const minutes = Math.floor((uptimeMs % (60 * 60 * 1000)) / (60 * 1000));
+  const seconds = Math.floor((uptimeMs % (60 * 1000)) / 1000);
+  return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+}
+
 export function setApplicationStatus(healthy: boolean) {
   isApplicationHealthy = healthy;
 }
@@ -88,6 +103,7 @@ async function runHealthCheck(span: trace.Span): Promise<Response> {
 
   const response = {
     timestamp: new Date().toISOString(),
+    uptime: getUptime(),
     application_status: isApplicationHealthy ? "Healthy" : "Unhealthy",
     eventing_functions_status: isEventingFunctionsHealthy
       ? "Healthy"
