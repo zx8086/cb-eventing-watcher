@@ -23,7 +23,10 @@ const traceIdFormat = winston.format((info) => {
 
 const logger = winston.createLogger({
   level: config.app.LOG_LEVEL,
-  format: ecsFormat({ convertReqRes: true }),
+  format: winston.format.combine(
+    traceIdFormat(),
+    ecsFormat({ convertReqRes: true }),
+  ),
   transports: [
     new winston.transports.Console(),
     new OpenTelemetryTransportV3({
@@ -38,34 +41,6 @@ const logger = winston.createLogger({
     }),
   ],
 });
-
-// const logger = winston.createLogger({
-//   level: config.app.LOG_LEVEL,
-//   format: winston.format.combine(
-//     traceIdFormat(),
-//     ecsFormat({ convertReqRes: true }),
-//   ),
-//   transports: [
-//     new winston.transports.Console(),
-//     new OpenTelemetryTransportV3({
-//       level: config.app.LOG_LEVEL,
-//       resourceAttributes: {
-//         "service.name": config.openTelemetry.SERVICE_NAME,
-//         "service.version": config.openTelemetry.SERVICE_VERSION,
-//       },
-//       onError: (error) => {
-//         console.error("Error in OpenTelemetry transport", error);
-//       },
-//     }),
-//     new DailyRotateFile({
-//       filename: path.join(logsDir, "couchbase-eventing-watcher-%DATE%.log"),
-//       datePattern: "YYYY-MM-DD",
-//       zippedArchive: true,
-//       maxSize: "20m",
-//       maxFiles: "14d",
-//     }),
-//   ],
-// });
 
 export function log(message: string, meta?: any): void {
   logger.info(message, meta);

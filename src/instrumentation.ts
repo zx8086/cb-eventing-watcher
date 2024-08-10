@@ -83,18 +83,19 @@ const sdk = new NodeSDK({
   logRecordProcessor: new BatchLogRecordProcessor(logExporter),
   instrumentations: [
     getNodeAutoInstrumentations({
+      "@opentelemetry/instrumentation-aws-lambda": { enabled: false },
       "@opentelemetry/instrumentation-fs": { enabled: false },
       "@opentelemetry/instrumentation-http": { enabled: true },
       "@opentelemetry/instrumentation-winston": { enabled: false },
     }),
-    new WinstonInstrumentation({
-      enabled: true,
-      logSeverity: 5,
-      // disableLogSending: true,
-      logHook: (_span, record) => {
-        record["resource.service.name"] = config.openTelemetry.SERVICE_NAME;
-      },
-    }),
+    // new WinstonInstrumentation({
+    //   enabled: false,
+    //   logSeverity: 5,
+    //   // disableLogSending: true,
+    //   logHook: (_span, record) => {
+    //     record["resource.service.name"] = config.openTelemetry.SERVICE_NAME;
+    //   },
+    // }),
   ],
 });
 
