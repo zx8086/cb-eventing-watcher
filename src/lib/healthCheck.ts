@@ -1,4 +1,5 @@
-// src/healthCheck.ts
+/* src/healthCheck.ts */
+
 import type { Server } from "bun";
 import { log, error } from "$utils/index";
 import { getLatestFunctionStatuses } from "$lib/index";

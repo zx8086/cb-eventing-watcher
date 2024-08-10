@@ -1,4 +1,5 @@
-// src/database.ts
+/* src/lib/database.ts */
+
 import { Database } from "bun:sqlite";
 import { log, error } from "$utils/index";
 import { trace, context, SpanStatusCode } from "@opentelemetry/api";

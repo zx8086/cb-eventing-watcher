@@ -1,4 +1,4 @@
-// src/models/model.ts
+/* src/models/model.ts */
 
 export interface CouchbaseFunction {
   name: string;

@@ -1,4 +1,4 @@
-// src/config/config.ts
+/* src/config/config.ts */
 
 export default {
   HEALTH_CHECK_PORT: 8080,
@@ -17,6 +17,7 @@ export default {
     OTLP_METRICS_ENDPOINT: "http://192.168.0.9:4318/v1/metrics",
     OTLP_LOGS_ENDPOINT: "http://192.168.0.9:4318/v1/logs",
   },
+  app: {
+    LOG_LEVEL: "debug",
+  },
 };
-
-//     OTLP_LOGS_ENDPOINT: "https://otel-http-logs.siobytes.com",

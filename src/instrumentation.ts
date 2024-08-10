@@ -1,4 +1,4 @@
-// src/instrumentation.ts
+/* src/instrumentation.ts */
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
@@ -17,9 +17,19 @@ import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { diag, DiagConsoleLogger, DiagLogLevel } from "@opentelemetry/api";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
-import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
-import * as logsAPI from "@opentelemetry/api-logs";
-
+import {
+  BatchLogRecordProcessor,
+  LoggerProvider,
+} from "@opentelemetry/sdk-logs";
+import * as api from "@opentelemetry/api-logs";
+import {
+  detectResourcesSync,
+  envDetectorSync,
+  hostDetectorSync,
+  processDetectorSync,
+} from "@opentelemetry/resources";
+import { OpenTelemetryTransportV3 } from "@opentelemetry/winston-transport";
+import * as winston from "winston";
 import config from "$config/config";
 
 // Set up diagnostics logging
@@ -30,15 +40,31 @@ const traceExporter = new OTLPTraceExporter({
   url: config.openTelemetry.OTLP_TRACES_ENDPOINT,
   headers: { "Content-Type": "application/json" },
 });
-
 const metricExporter = new OTLPMetricExporter({
   url: config.openTelemetry.OTLP_METRICS_ENDPOINT,
   headers: { "Content-Type": "application/json" },
 });
-
 const logExporter = new OTLPLogExporter({
   url: config.openTelemetry.OTLP_LOGS_ENDPOINT,
   headers: { "Content-Type": "application/json" },
+});
+
+// Set up LoggerProvider
+const loggerProvider = new LoggerProvider({
+  resource: detectResourcesSync({
+    detectors: [envDetectorSync, processDetectorSync, hostDetectorSync],
+  }),
+});
+loggerProvider.addLogRecordProcessor(new BatchLogRecordProcessor(logExporter));
+api.logs.setGlobalLoggerProvider(loggerProvider);
+
+// Set up Winston logger
+export const logger = winston.createLogger({
+  level: config.app.LOG_LEVEL,
+  transports: [
+    new winston.transports.Console(),
+    new OpenTelemetryTransportV3(),
+  ],
 });
 
 const sdk = new NodeSDK({
@@ -59,10 +85,11 @@ const sdk = new NodeSDK({
     getNodeAutoInstrumentations({
       "@opentelemetry/instrumentation-fs": { enabled: false },
       "@opentelemetry/instrumentation-http": { enabled: true },
-      "@opentelemetry/instrumentation-winston": { enabled: false },
+      "@opentelemetry/instrumentation-winston": { enabled: true },
     }),
     new WinstonInstrumentation({
-      disableLogSending: true,
+      enabled: true,
+      // disableLogSending: true,
       logHook: (_span, record) => {
         record["resource.service.name"] = config.openTelemetry.SERVICE_NAME;
       },
@@ -72,7 +99,6 @@ const sdk = new NodeSDK({
 
 // Start the SDK
 sdk.start();
-
 console.log("OpenTelemetry SDK started with auto-instrumentation");
 
 // Graceful shutdown
