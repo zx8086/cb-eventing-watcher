@@ -22,6 +22,8 @@ import {
   SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
 } from "@opentelemetry/semantic-conventions";
 
+import type { FunctionStats } from "../types/eventing";
+
 const tracer = trace.getTracer("couchbase-eventing-watcher");
 
 const baseURL = config.eventing.COUCHBASE_URL;
@@ -227,6 +229,50 @@ export async function checkDcpBacklogSize(
     {
       "code.namespace": "couchbase.functions",
       "code.function": "checkDcpBacklogSize",
+      "function.name": functionName,
+    },
+  );
+}
+
+export async function getFunctionStats(
+  functionName: string,
+): Promise<FunctionStats> {
+  return tracedOperation(
+    "getFunctionStats",
+    async () => {
+      try {
+        const stats = await fetchWithAuth<any>(
+          `/api/v1/stats/${functionName}`,
+          `fetchFunctionStats ${functionName}`,
+        );
+
+        return {
+          status: stats.status,
+          success: stats.success,
+          failure: stats.failure,
+          backlog: stats.backlog,
+          timeout: stats.timeout,
+        };
+      } catch (err) {
+        if (
+          err instanceof Error &&
+          err.message.includes("HTTP error! status: 400")
+        ) {
+          // Function might be undeployed or in an invalid state
+          return {
+            status: "undeployed",
+            success: 0,
+            failure: 0,
+            backlog: 0,
+            timeout: 0,
+          };
+        }
+        throw err; // Re-throw other errors
+      }
+    },
+    {
+      "code.namespace": "couchbase.functions",
+      "code.function": "getFunctionStats",
       "function.name": functionName,
     },
   );
