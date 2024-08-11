@@ -1,5 +1,4 @@
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { Resource } from "@opentelemetry/resources";
 import {
@@ -28,7 +27,7 @@ import * as api from "@opentelemetry/api-logs";
 import { config } from "$config";
 
 // Set up diagnostics logging
-diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 
 // Create a shared resource
 const resource = new Resource({
@@ -43,10 +42,12 @@ const traceExporter = new OTLPTraceExporter({
   url: config.openTelemetry.TRACES_ENDPOINT,
   headers: { "Content-Type": "application/json" },
 });
+
 const metricExporter = new OTLPMetricExporter({
   url: config.openTelemetry.METRICS_ENDPOINT,
   headers: { "Content-Type": "application/json" },
 });
+
 const logExporter = new OTLPLogExporter({
   url: config.openTelemetry.LOGS_ENDPOINT,
   headers: { "Content-Type": "application/json" },
@@ -87,6 +88,8 @@ export const meter = metrics.getMeter("couchbase-eventing");
 try {
   sdk.start();
   console.log("OpenTelemetry SDK started with auto-instrumentation");
+  console.log("Metric export interval:", metricReader.exportIntervalMillis);
+  console.log("Metrics endpoint:", config.openTelemetry.METRICS_ENDPOINT);
 } catch (error) {
   console.error("Error starting OpenTelemetry SDK:", error);
 }

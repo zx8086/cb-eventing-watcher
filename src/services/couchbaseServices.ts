@@ -22,8 +22,6 @@ import {
   SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
 } from "@opentelemetry/semantic-conventions";
 
-import type { FunctionStats } from "../types/eventing";
-
 const tracer = trace.getTracer("couchbase-eventing-watcher");
 
 const baseURL = config.eventing.COUCHBASE_URL;
@@ -241,17 +239,24 @@ export async function getFunctionStats(
     "getFunctionStats",
     async () => {
       try {
-        const stats = await fetchWithAuth<any>(
-          `/api/v1/stats/${functionName}`,
-          `fetchFunctionStats ${functionName}`,
-        );
+        const [status, executionStats, failureStats] = await Promise.all([
+          checkFunctionStatus(functionName),
+          checkExecutionStats(functionName),
+          checkFailureStats(functionName),
+        ]);
 
         return {
-          status: stats.status,
-          success: stats.success,
-          failure: stats.failure,
-          backlog: stats.backlog,
-          timeout: stats.timeout,
+          status: status.app.composite_status,
+          success:
+            executionStats.on_update_success + executionStats.on_delete_success,
+          failure:
+            executionStats.on_update_failure + executionStats.on_delete_failure,
+          backlog: executionStats.agg_queue_size,
+          timeout: failureStats.timeout_count,
+          curl: executionStats.curl,
+          dcp_backlog: executionStats.dcp_backlog,
+          execution_stats: executionStats,
+          failure_stats: failureStats,
         };
       } catch (err) {
         if (
@@ -265,6 +270,10 @@ export async function getFunctionStats(
             failure: 0,
             backlog: 0,
             timeout: 0,
+            curl: { get: 0, post: 0, head: 0, put: 0, delete: 0 },
+            dcp_backlog: 0,
+            execution_stats: {} as ExecutionStats,
+            failure_stats: {} as FailureStats,
           };
         }
         throw err; // Re-throw other errors

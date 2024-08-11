@@ -16,6 +16,7 @@ export async function monitorCouchbaseFunctions() {
       try {
         log(`Fetching stats for function: ${functionName}`);
         const stats = await getFunctionStats(functionName);
+        log(`Received stats for ${functionName}: ${JSON.stringify(stats)}`);
         recordAllMetrics(functionName, stats);
         log(`Successfully recorded metrics for function: ${functionName}`);
       } catch (err) {
