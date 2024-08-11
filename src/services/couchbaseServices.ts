@@ -1,6 +1,6 @@
 /* src/services/couchbaseServices.ts */
 
-import config from "../config/config.ts";
+import { config } from "$config";
 import { log, error } from "$utils";
 import type {
   CouchbaseFunction,

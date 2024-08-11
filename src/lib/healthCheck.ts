@@ -4,7 +4,7 @@ import type { Server } from "bun";
 import { log, error, initializeUptime, getUptime } from "$utils/index";
 import { getLatestFunctionStatuses } from "$lib/index";
 import { trace, context, SpanStatusCode } from "@opentelemetry/api";
-import config from "../config/config.ts";
+import { config } from "$config";
 
 const tracer = trace.getTracer("health-check-server");
 

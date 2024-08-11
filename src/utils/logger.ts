@@ -5,7 +5,7 @@ import { ecsFormat } from "@elastic/ecs-winston-format";
 import { OpenTelemetryTransportV3 } from "@opentelemetry/winston-transport";
 import DailyRotateFile from "winston-daily-rotate-file";
 import path from "path";
-import config from "$config/config";
+import { config } from "$config";
 
 const rootDir = path.join(__dirname, "..", "..");
 const logsDir = path.join(rootDir, "logs");

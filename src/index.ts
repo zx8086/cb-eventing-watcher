@@ -1,7 +1,7 @@
 /* src/index.ts */
 
 import cron from "node-cron";
-import config from "$config/config.ts";
+import { config } from "$config";
 import { log, error, warn, debug } from "$utils";
 import {
   startHealthCheckServer,

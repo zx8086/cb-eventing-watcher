@@ -4,11 +4,11 @@ import {
   IncomingWebhook,
   type IncomingWebhookSendArguments,
 } from "@slack/webhook";
-import config from "../config/config.ts";
+import { config } from "$config";
 import { AlertSeverity, type AlertOptions } from "../types";
 import { log, error } from "$utils/index";
 
-const slackWebhook = new IncomingWebhook(config.SLACK_WEBHOOK_URL);
+const slackWebhook = new IncomingWebhook(config.messaging.SLACK_WEBHOOK_URL);
 
 const colorMap = {
   [AlertSeverity.INFO]: "#36a64f", // Green

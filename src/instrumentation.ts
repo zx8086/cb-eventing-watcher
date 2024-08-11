@@ -22,22 +22,22 @@ import {
   LoggerProvider,
 } from "@opentelemetry/sdk-logs";
 import * as api from "@opentelemetry/api-logs";
-import config from "$config/config";
+import { config } from "$config";
 
 // Set up diagnostics logging
 diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 
 // Create OTLP exporters
 const traceExporter = new OTLPTraceExporter({
-  url: config.openTelemetry.OTLP_TRACES_ENDPOINT,
+  url: config.openTelemetry.TRACES_ENDPOINT,
   headers: { "Content-Type": "application/json" },
 });
 const metricExporter = new OTLPMetricExporter({
-  url: config.openTelemetry.OTLP_METRICS_ENDPOINT,
+  url: config.openTelemetry.METRICS_ENDPOINT,
   headers: { "Content-Type": "application/json" },
 });
 const logExporter = new OTLPLogExporter({
-  url: config.openTelemetry.OTLP_LOGS_ENDPOINT,
+  url: config.openTelemetry.LOGS_ENDPOINT,
   headers: { "Content-Type": "application/json" },
 });
 
