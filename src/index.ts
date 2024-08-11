@@ -20,6 +20,8 @@ import {
   AlertSeverity,
 } from "$services/index.ts";
 
+import { startCouchbaseMonitoring } from "./monitoring/couchbaseMonitor";
+
 async function checkEventingService(): Promise<void> {
   log("Running checkEventingService...");
   try {
@@ -236,6 +238,10 @@ log("Couchbase Eventing Watcher starting...");
     const healthServer = startHealthCheckServer(
       config.app.HEALTH_CHECK_PORT || 8080,
     );
+
+    // Start the Couchbase monitoring
+    startCouchbaseMonitoring();
+    log("Couchbase monitoring started");
 
     if (await startScheduler()) {
       log("Using cron scheduler", { cronSchedule: config.CRON_SCHEDULE });

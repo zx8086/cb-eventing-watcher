@@ -111,3 +111,13 @@ export interface AlertOptions {
   functionName?: string;
   additionalContext?: Record<string, any>;
 }
+
+// Eventing Metrics
+
+export interface FunctionStats {
+  status: "deployed" | "undeployed";
+  success: number;
+  failure: number;
+  backlog: number;
+  timeout: number;
+}
