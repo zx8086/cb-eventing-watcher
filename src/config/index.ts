@@ -1,3 +1,5 @@
 /* src/config/index.ts */
 
-export * from "./config";
+import config from "./backend";
+
+export default config;

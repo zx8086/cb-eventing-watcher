@@ -34,8 +34,8 @@
       "$config/*": ["src/config/*"],
       "$utils": ["src/utils"],
       "$utils/*": ["src/utils/*"],
-      "$models": ["src/models"],
-      "$models/*": ["src/models/*"]
+      "$types": ["src/types"],
+      "$types/*": ["src/types/*"]
     },
     "types": ["bun-types"],
 
