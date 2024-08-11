@@ -24,11 +24,17 @@
     "rootDir": "./src",
     "baseUrl": ".",
     "paths": {
+      "$lib": ["src/lib"],
       "$lib/*": ["src/lib/*"],
+      "$services": ["src/services"],
       "$services/*": ["src/services/*"],
+      "$db": ["db"],
       "$db/*": ["db/*"],
+      "$config": ["src/config"],
       "$config/*": ["src/config/*"],
+      "$utils": ["src/utils"],
       "$utils/*": ["src/utils/*"],
+      "$models": ["src/models"],
       "$models/*": ["src/models/*"]
     },
     "types": ["bun-types"],
