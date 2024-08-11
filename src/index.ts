@@ -1,8 +1,8 @@
 /* src/index.ts */
 
 import cron from "node-cron";
-import config from "$config/config.ts";
-import logger, { log, error, warn, debug } from "$utils/logger.ts";
+import { config } from "$config";
+import { log, error, warn, debug } from "$utils";
 import {
   startHealthCheckServer,
   setApplicationStatus,
@@ -20,46 +20,50 @@ import {
   AlertSeverity,
 } from "$services/index.ts";
 
-async function checkStats(): Promise<void> {
-  log("Running checkStats...");
+async function checkEventingService(): Promise<void> {
+  log("Running checkEventingService...");
   try {
     const functionList = await getFunctionList();
     log(`Found ${functionList.length} functions`, {
       functionCount: functionList.length,
     });
 
-    // Remove outdated functions from the database
     removeOutdatedFunctions(functionList);
 
     for (const functionName of functionList) {
       try {
-        log(`Checking function: ${functionName}`, { function: functionName });
+        log(`Checking Eventing Function: ${functionName}`, {
+          function: functionName,
+        });
         const status = await checkFunctionStatus(functionName);
         const executionStats = await checkExecutionStats(functionName);
         const failureStats = await checkFailureStats(functionName);
         const dcpBacklog = await checkDcpBacklogSize(functionName);
 
         let functionHealthy = true;
-        let statusMessage = "Function operating normally";
+        let statusMessage = `Eventing Function: ${functionName} operating normally`;
 
         if (status.app.redeploy_required) {
           functionHealthy = false;
-          statusMessage = "Function requires redeployment";
-          warn(`Function ${functionName} requires redeployment`, {
+          statusMessage = `Eventing Function: ${functionName} requires redeployment`;
+          warn(`Eventing Function: ${functionName} requires redeployment`, {
             function: functionName,
             status: status.app.composite_status,
             deploymentStatus: status.app.deployment_status,
             processingStatus: status.app.processing_status,
           });
-          await sendSlackAlert("Function requires redeployment", {
-            severity: AlertSeverity.WARNING,
-            functionName: functionName,
-            additionalContext: {
-              status: status.app.composite_status,
-              deploymentStatus: status.app.deployment_status,
-              processingStatus: status.app.processing_status,
+          await sendSlackAlert(
+            "Eventing Function: ${functionName} requires redeployment",
+            {
+              severity: AlertSeverity.WARNING,
+              functionName: functionName,
+              additionalContext: {
+                status: status.app.composite_status,
+                deploymentStatus: status.app.deployment_status,
+                processingStatus: status.app.processing_status,
+              },
             },
-          });
+          );
         }
 
         if (dcpBacklog.dcp_backlog > config.DCP_BACKLOG_THRESHOLD) {
@@ -103,18 +107,21 @@ async function checkStats(): Promise<void> {
 
         if (failureStats.timeout_count > 0) {
           functionHealthy = false;
-          statusMessage = "Function timeouts detected";
-          warn(`Function ${functionName} timeouts detected`, {
+          statusMessage = `Eventing Function: ${functionName} has a timeouts detected`;
+          warn(`Eventing Function: ${functionName} has  atimeouts detected`, {
             function: functionName,
             timeoutCount: failureStats.timeout_count,
           });
-          await sendSlackAlert("Function timeouts detected", {
-            severity: AlertSeverity.WARNING,
-            functionName: functionName,
-            additionalContext: {
-              timeoutCount: failureStats.timeout_count,
+          await sendSlackAlert(
+            `Eventing Function: ${functionName} has  atimeouts detected`,
+            {
+              severity: AlertSeverity.WARNING,
+              functionName: functionName,
+              additionalContext: {
+                timeoutCount: failureStats.timeout_count,
+              },
             },
-          });
+          );
         }
 
         updateFunctionStatus(
@@ -123,7 +130,7 @@ async function checkStats(): Promise<void> {
           statusMessage,
         );
 
-        debug(`Function ${functionName} check completed`, {
+        debug(`Eventing Function: ${functionName} check completed`, {
           function: functionName,
           status: status.app.composite_status,
           executionStats,
@@ -133,7 +140,7 @@ async function checkStats(): Promise<void> {
       } catch (funcError) {
         const errorMessage =
           funcError instanceof Error ? funcError.message : "Unknown error";
-        error(`Error checking function ${functionName}`, {
+        error(`Error checking Eventing Function ${functionName}`, {
           function: functionName,
           error: errorMessage,
         });
@@ -149,23 +156,23 @@ async function checkStats(): Promise<void> {
             functionName: functionName,
             additionalContext: {
               error: errorMessage,
-              stage: "individual function check",
+              stage: "Eventing Function Check",
             },
           },
         );
       }
     }
-    log("Finished checking all functions");
+    log("Finished checking all the Eventing Functions");
     setApplicationStatus(true);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    error(`Error in checkStats`, { error: errorMessage });
+    error(`Error in checkEventingService`, { error: errorMessage });
     setApplicationStatus(false);
-    await sendSlackAlert("Error checking Couchbase function stats", {
+    await sendSlackAlert("Error checking Couchbase Eventing Functions", {
       severity: AlertSeverity.ERROR,
       additionalContext: {
         error: errorMessage,
-        stage: "initial function list fetch or overall process",
+        stage: "Initial Eventing Function list fetch or overall process",
       },
     });
   }
@@ -176,7 +183,7 @@ async function startScheduler(): Promise<boolean> {
     `Attempting to schedule job with cron expression: ${config.CRON_SCHEDULE}`,
   );
   try {
-    cron.schedule(config.CRON_SCHEDULE, checkStats);
+    cron.schedule(config.CRON_SCHEDULE, checkEventingService);
     log("Cron job scheduled successfully");
     return true;
   } catch (err) {
@@ -185,13 +192,16 @@ async function startScheduler(): Promise<boolean> {
       error: errorMessage,
       cronSchedule: config.CRON_SCHEDULE,
     });
-    await sendSlackAlert("Failed to schedule Couchbase monitoring job", {
-      severity: AlertSeverity.ERROR,
-      additionalContext: {
-        error: errorMessage,
-        cronSchedule: config.CRON_SCHEDULE,
+    await sendSlackAlert(
+      "Failed to schedule Couchbase Eventing monitoring job",
+      {
+        severity: AlertSeverity.ERROR,
+        additionalContext: {
+          error: errorMessage,
+          cronSchedule: config.CRON_SCHEDULE,
+        },
       },
-    });
+    );
     return false;
   }
 }
@@ -200,9 +210,9 @@ function simpleScheduler(): void {
   // const intervalMs = 5 * 60 * 1000; // 5 minutes in milliseconds
   const intervalMs = 10 * 60 * 1000; // 10 minutes in milliseconds
 
-  async function runCheckStats() {
+  async function runcheckEventingService() {
     try {
-      await checkStats();
+      await checkEventingService();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
       error(`Error in simple scheduler`, { error: errorMessage });
@@ -212,20 +222,19 @@ function simpleScheduler(): void {
       });
     } finally {
       log(`Scheduling next check in ${intervalMs / 1000} seconds`);
-      setTimeout(runCheckStats, intervalMs);
+      setTimeout(runcheckEventingService, intervalMs);
     }
   }
   log(`Starting simple scheduler with ${intervalMs / 1000} second interval`);
-  runCheckStats();
+  runcheckEventingService();
 }
 
 // Start the application
 log("Couchbase Eventing Watcher starting...");
 (async () => {
   try {
-    // Start the health check server
     const healthServer = startHealthCheckServer(
-      config.HEALTH_CHECK_PORT || 8080,
+      config.app.HEALTH_CHECK_PORT || 8080,
     );
 
     if (await startScheduler()) {
@@ -249,9 +258,8 @@ log("Couchbase Eventing Watcher starting...");
       );
     }
 
-    // Run an initial check immediately
-    await checkStats();
-    setApplicationStatus(true); // Set the initial application status to healthy after successful startup
+    await checkEventingService();
+    setApplicationStatus(true);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
     error(`Failed to start Couchbase Eventing Watcher`, {
@@ -266,4 +274,4 @@ log("Couchbase Eventing Watcher starting...");
 })();
 
 // Update health status periodically
-setInterval(checkStats, 60000); // Check every minute
+setInterval(checkEventingService, config.eventing.SERVICE_CHECK_INTERVAL); // Check every minute

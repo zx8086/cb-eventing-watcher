@@ -1,40 +1,30 @@
+/* src/lib/healthCheck.ts */
+
 import type { Server } from "bun";
-import { log, error } from "$utils/index";
+import { log, error, initializeUptime, getUptime } from "$utils/index";
 import { getLatestFunctionStatuses } from "$lib/index";
 import { trace, context, SpanStatusCode } from "@opentelemetry/api";
+import { config } from "$config";
 
 const tracer = trace.getTracer("health-check-server");
 
 let isApplicationHealthy = true;
 
-// New variables for caching and periodic logging
 let lastLoggedResponse: string | null = null;
-const LOG_INTERVAL = 3600000; // 1 hour in milliseconds
+// const LOG_INTERVAL = config.app.HEALTH_CHECK_LOG_INTERVAL;
 let lastLoggedTime = 0;
 
-// New constant for the health check interval
-const HEALTH_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes
+// const HEALTH_CHECK_INTERVAL = config.app.HEALTH_CHECK_INTERVAL;
 
-// Capture the start time
-const START_TIME = Bun.nanoseconds();
-
-function getUptime(): string {
-  const uptimeNs = Bun.nanoseconds() - START_TIME;
-  const uptimeMs = uptimeNs / 1_000_000; // Convert to milliseconds
-  const days = Math.floor(uptimeMs / (24 * 60 * 60 * 1000));
-  const hours = Math.floor(
-    (uptimeMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000),
-  );
-  const minutes = Math.floor((uptimeMs % (60 * 60 * 1000)) / (60 * 1000));
-  const seconds = Math.floor((uptimeMs % (60 * 1000)) / 1000);
-  return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-}
+initializeUptime();
 
 export function setApplicationStatus(healthy: boolean) {
   isApplicationHealthy = healthy;
 }
 
-export function startHealthCheckServer(port: number = 8080): Server {
+export function startHealthCheckServer(
+  port: number = config.app.HEALTH_CHECK_PORT,
+): Server {
   const server = Bun.serve({
     port: port,
     fetch(req) {
@@ -61,9 +51,8 @@ export function startHealthCheckServer(port: number = 8080): Server {
       });
     },
   });
-  log(`Health check server started on ${server.url}`, { serverId: server.id });
+  log(`Health Check Server started on ${server.url}`, { serverId: server.id });
 
-  // Schedule periodic health checks
   setInterval(() => {
     tracer.startActiveSpan("scheduled_health_check", async (span) => {
       try {
@@ -74,7 +63,7 @@ export function startHealthCheckServer(port: number = 8080): Server {
         span.end();
       }
     });
-  }, HEALTH_CHECK_INTERVAL);
+  }, config.app.HEALTH_CHECK_INTERVAL);
 
   return server;
 }
@@ -117,10 +106,9 @@ async function runHealthCheck(span: trace.Span): Promise<Response> {
   const responseJson = JSON.stringify(response, null, 2);
   const now = Date.now();
 
-  // Log if there's a change in status or if the log interval has passed
   if (
     responseJson !== lastLoggedResponse ||
-    now - lastLoggedTime > LOG_INTERVAL
+    now - lastLoggedTime > config.app.HEALTH_CHECK_LOG_INTERVAL
   ) {
     log("Health check results", {
       traceId: span.spanContext().traceId,

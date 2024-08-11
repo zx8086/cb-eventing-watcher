@@ -22,51 +22,38 @@ import {
   LoggerProvider,
 } from "@opentelemetry/sdk-logs";
 import * as api from "@opentelemetry/api-logs";
-import {
-  detectResourcesSync,
-  envDetectorSync,
-  hostDetectorSync,
-  processDetectorSync,
-} from "@opentelemetry/resources";
-import { OpenTelemetryTransportV3 } from "@opentelemetry/winston-transport";
-import * as winston from "winston";
-import config from "$config/config";
+import { config } from "$config";
 
 // Set up diagnostics logging
-diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 
 // Create OTLP exporters
 const traceExporter = new OTLPTraceExporter({
-  url: config.openTelemetry.OTLP_TRACES_ENDPOINT,
+  url: config.openTelemetry.TRACES_ENDPOINT,
   headers: { "Content-Type": "application/json" },
 });
 const metricExporter = new OTLPMetricExporter({
-  url: config.openTelemetry.OTLP_METRICS_ENDPOINT,
+  url: config.openTelemetry.METRICS_ENDPOINT,
   headers: { "Content-Type": "application/json" },
 });
 const logExporter = new OTLPLogExporter({
-  url: config.openTelemetry.OTLP_LOGS_ENDPOINT,
+  url: config.openTelemetry.LOGS_ENDPOINT,
   headers: { "Content-Type": "application/json" },
 });
 
 // Set up LoggerProvider
 const loggerProvider = new LoggerProvider({
-  resource: detectResourcesSync({
-    detectors: [envDetectorSync, processDetectorSync, hostDetectorSync],
+  resource: new Resource({
+    [SEMRESATTRS_SERVICE_NAME]: config.openTelemetry.SERVICE_NAME,
+    [SEMRESATTRS_SERVICE_VERSION]: config.openTelemetry.SERVICE_VERSION,
+    [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]:
+      config.openTelemetry.DEPLOYMENT_ENVIRONMENT,
   }),
 });
 loggerProvider.addLogRecordProcessor(new BatchLogRecordProcessor(logExporter));
 api.logs.setGlobalLoggerProvider(loggerProvider);
 
-// Set up Winston logger
-export const logger = winston.createLogger({
-  level: config.app.LOG_LEVEL,
-  transports: [
-    new winston.transports.Console(),
-    new OpenTelemetryTransportV3(),
-  ],
-});
-
+// Node SDK for OpenTelemetry
 const sdk = new NodeSDK({
   resource: new Resource({
     [SEMRESATTRS_SERVICE_NAME]: config.openTelemetry.SERVICE_NAME,
@@ -86,16 +73,9 @@ const sdk = new NodeSDK({
       "@opentelemetry/instrumentation-aws-lambda": { enabled: false },
       "@opentelemetry/instrumentation-fs": { enabled: false },
       "@opentelemetry/instrumentation-http": { enabled: true },
-      "@opentelemetry/instrumentation-winston": { enabled: false },
+      "@opentelemetry/instrumentation-winston": { enabled: true },
     }),
-    // new WinstonInstrumentation({
-    //   enabled: false,
-    //   logSeverity: 5,
-    //   // disableLogSending: true,
-    //   logHook: (_span, record) => {
-    //     record["resource.service.name"] = config.openTelemetry.SERVICE_NAME;
-    //   },
-    // }),
+    new WinstonInstrumentation({ enabled: true }),
   ],
 });
 
@@ -112,5 +92,4 @@ process.on("SIGTERM", () => {
     .finally(() => process.exit(0));
 });
 
-// Export for use in other parts of your application if needed
 export const otelSDK = sdk;

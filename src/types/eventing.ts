@@ -1,4 +1,4 @@
-/* src/models/model.ts */
+/* src/types/eventing.ts */
 
 export interface CouchbaseFunction {
   name: string;
