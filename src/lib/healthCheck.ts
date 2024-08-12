@@ -3,20 +3,36 @@
 import type { Server } from "bun";
 import { log, error, initializeUptime, getUptime } from "$utils/index";
 import { getLatestFunctionStatuses } from "$lib/index";
+import { getFunctionStats } from "$services";
 import { trace, context, SpanStatusCode } from "@opentelemetry/api";
 import { config } from "$config";
+import { meter } from "../instrumentation";
 
 const tracer = trace.getTracer("health-check-server");
 
 let isApplicationHealthy = true;
 
 let lastLoggedResponse: string | null = null;
-// const LOG_INTERVAL = config.app.HEALTH_CHECK_LOG_INTERVAL;
 let lastLoggedTime = 0;
 
-// const HEALTH_CHECK_INTERVAL = config.app.HEALTH_CHECK_INTERVAL;
-
 initializeUptime();
+
+// Create metrics
+const dcpBacklogGauge = meter.createObservableGauge(
+  "health_check.dcp_backlog",
+  {
+    description: "DCP backlog size from health check",
+    unit: "1",
+  },
+);
+
+const executionStatsGauge = meter.createObservableGauge(
+  "health_check.execution_stats",
+  {
+    description: "Execution stats from health check",
+    unit: "1",
+  },
+);
 
 export function setApplicationStatus(healthy: boolean) {
   isApplicationHealthy = healthy;
@@ -69,21 +85,100 @@ export function startHealthCheckServer(
 }
 
 async function runHealthCheck(span: trace.Span): Promise<Response> {
-  const latestStatuses = await tracer.startActiveSpan(
-    "getLatestFunctionStatuses",
-    async (childSpan) => {
-      const statuses = await getLatestFunctionStatuses();
-      childSpan.setStatus({ code: SpanStatusCode.OK });
-      childSpan.end();
-      return statuses;
-    },
-  );
+  let latestStatuses;
+  try {
+    latestStatuses = await tracer.startActiveSpan(
+      "getLatestFunctionStatuses",
+      async (childSpan) => {
+        const statuses = await getLatestFunctionStatuses();
+        childSpan.setStatus({ code: SpanStatusCode.OK });
+        childSpan.end();
+        return statuses;
+      },
+    );
+  } catch (err) {
+    error("Error fetching latest function statuses", { error: err });
+    latestStatuses = [];
+  }
+
+  log("Latest function statuses", { statuses: JSON.stringify(latestStatuses) });
 
   const successes = latestStatuses.filter(
-    (status) => status.status === "success",
+    (status) => status && status.status === "success",
   );
-  const failures = latestStatuses.filter((status) => status.status === "error");
+  const failures = latestStatuses.filter(
+    (status) => status && status.status === "error",
+  );
   const isEventingFunctionsHealthy = failures.length === 0;
+
+  // Fetch DCP backlog and execution stats for each function
+  const functionStats = await Promise.all(
+    latestStatuses.map(async (status) => {
+      if (!status || !status.function_name) {
+        error("Invalid status object", { status: JSON.stringify(status) });
+        return null;
+      }
+      try {
+        log(`Fetching stats for function: ${status.function_name}`);
+        const stats = await getFunctionStats(status.function_name);
+        log(`Received stats for function: ${status.function_name}`, {
+          stats: JSON.stringify(stats),
+        });
+        return { functionName: status.function_name, stats };
+      } catch (err) {
+        error(`Error fetching stats for function ${status.function_name}`, {
+          error: err,
+        });
+        return null;
+      }
+    }),
+  );
+
+  // Filter out null values
+  const validFunctionStats = functionStats.filter(Boolean);
+
+  log("Valid function stats", { stats: JSON.stringify(validFunctionStats) });
+
+  // Record metrics
+  dcpBacklogGauge.addCallback((observer) => {
+    validFunctionStats.forEach(({ functionName, stats }) => {
+      if (stats && typeof stats.dcp_backlog === "number") {
+        observer.observe(stats.dcp_backlog, { functionName });
+        log(`Recorded DCP backlog for ${functionName}: ${stats.dcp_backlog}`);
+      } else {
+        log(`Missing or invalid DCP backlog for ${functionName}`, {
+          stats: JSON.stringify(stats),
+        });
+      }
+    });
+  });
+
+  executionStatsGauge.addCallback((observer) => {
+    validFunctionStats.forEach(({ functionName, stats }) => {
+      if (stats && stats.execution_stats) {
+        const execStats = stats.execution_stats;
+        [
+          "on_update_success",
+          "on_update_failure",
+          "on_delete_success",
+          "on_delete_failure",
+        ].forEach((metric) => {
+          if (typeof execStats[metric] === "number") {
+            observer.observe(execStats[metric], { functionName, metric });
+            log(`Recorded ${metric} for ${functionName}: ${execStats[metric]}`);
+          } else {
+            log(`Missing or invalid ${metric} for ${functionName}`, {
+              execStats: JSON.stringify(execStats),
+            });
+          }
+        });
+      } else {
+        log(`Missing or invalid execution stats for ${functionName}`, {
+          stats: JSON.stringify(stats),
+        });
+      }
+    });
+  });
 
   span.setAttribute("eventing_functions.healthy", isEventingFunctionsHealthy);
   span.setAttribute("application.healthy", isApplicationHealthy);
@@ -100,6 +195,19 @@ async function runHealthCheck(span: trace.Span): Promise<Response> {
     details: {
       successes,
       failures,
+    },
+    metrics: {
+      dcp_backlog: validFunctionStats.map(({ functionName, stats }) => ({
+        functionName,
+        backlog: stats.dcp_backlog,
+      })),
+      execution_stats: validFunctionStats.map(({ functionName, stats }) => ({
+        functionName,
+        on_update_success: stats.execution_stats.on_update_success,
+        on_update_failure: stats.execution_stats.on_update_failure,
+        on_delete_success: stats.execution_stats.on_delete_success,
+        on_delete_failure: stats.execution_stats.on_delete_failure,
+      })),
     },
   };
 
