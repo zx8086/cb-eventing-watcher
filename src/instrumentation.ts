@@ -1,4 +1,11 @@
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+/* src/instrumentation.ts */
+
+import {
+  diag,
+  DiagConsoleLogger,
+  DiagLogLevel,
+  metrics,
+} from "@opentelemetry/api";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { Resource } from "@opentelemetry/resources";
 import {
@@ -10,13 +17,11 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
-import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import {
-  diag,
-  DiagConsoleLogger,
-  DiagLogLevel,
-  metrics,
-} from "@opentelemetry/api";
+  MeterProvider,
+  PeriodicExportingMetricReader,
+  ConsoleMetricExporter,
+} from "@opentelemetry/sdk-metrics";
 import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import {
@@ -43,7 +48,7 @@ const traceExporter = new OTLPTraceExporter({
   headers: { "Content-Type": "application/json" },
 });
 
-const metricExporter = new OTLPMetricExporter({
+const otlpMetricExporter = new OTLPMetricExporter({
   url: config.openTelemetry.METRICS_ENDPOINT,
   headers: { "Content-Type": "application/json" },
 });
@@ -58,18 +63,32 @@ const loggerProvider = new LoggerProvider({ resource });
 loggerProvider.addLogRecordProcessor(new BatchLogRecordProcessor(logExporter));
 api.logs.setGlobalLoggerProvider(loggerProvider);
 
-// Set up MetricReader
-const metricReader = new PeriodicExportingMetricReader({
-  exporter: metricExporter,
-  exportIntervalMillis: 60000, // Export metrics every 60 seconds
+// Set up MetricReaders
+const consoleMetricReader = new PeriodicExportingMetricReader({
+  exporter: new ConsoleMetricExporter(),
+  exportIntervalMillis: 600000, // Export to OTLP every 10 minutes
 });
+
+const otlpMetricReader = new PeriodicExportingMetricReader({
+  exporter: otlpMetricExporter,
+  exportIntervalMillis: 1800000, // Export to OTLP every 30 minutes
+});
+
+// Set up MeterProvider
+const meterProvider = new MeterProvider({
+  resource: resource,
+  readers: [consoleMetricReader, otlpMetricReader],
+});
+
+// Set this MeterProvider to be global to the app being instrumented.
+metrics.setGlobalMeterProvider(meterProvider);
 
 // Node SDK for OpenTelemetry
 const sdk = new NodeSDK({
   resource: resource,
   traceExporter,
   spanProcessors: [new BatchSpanProcessor(traceExporter)],
-  metricReader,
+  metricReader: otlpMetricReader, // Use OTLP reader for the SDK
   logRecordProcessor: new BatchLogRecordProcessor(logExporter),
   instrumentations: [
     getNodeAutoInstrumentations({
@@ -82,13 +101,14 @@ const sdk = new NodeSDK({
   ],
 });
 
-export const meter = metrics.getMeter("couchbase-eventing");
+export const meter = metrics.getMeter("couchbase-eventing-metrics");
 
 // Start the SDK
 try {
   sdk.start();
   console.log("OpenTelemetry SDK started with auto-instrumentation");
-  console.log("Metric export interval:", metricReader.exportIntervalMillis);
+  console.log("Console Metric export:", consoleMetricReader);
+  console.log("OTLP Metric export:", otlpMetricReader);
   console.log("Metrics endpoint:", config.openTelemetry.METRICS_ENDPOINT);
 } catch (error) {
   console.error("Error starting OpenTelemetry SDK:", error);

@@ -8,6 +8,7 @@ import type {
   ExecutionStats,
   FailureStats,
   DcpBacklogSize,
+  FunctionStats,
 } from "../types/index.ts";
 import {
   trace,
@@ -239,14 +240,49 @@ export async function getFunctionStats(
     "getFunctionStats",
     async () => {
       try {
+        log(`Fetching stats for function: ${functionName}`);
+
         const [status, executionStats, failureStats] = await Promise.all([
           checkFunctionStatus(functionName),
           checkExecutionStats(functionName),
           checkFailureStats(functionName),
         ]);
 
-        return {
-          status: status.app.composite_status,
+        // Detailed logging of raw data
+        log(
+          `Raw status data for ${functionName}:`,
+          JSON.stringify(status, null, 2),
+        );
+        log(
+          `Raw execution stats for ${functionName}:`,
+          JSON.stringify(executionStats, null, 2),
+        );
+        log(
+          `Raw failure stats for ${functionName}:`,
+          JSON.stringify(failureStats, null, 2),
+        );
+
+        // Helper function to map the status to the correct type
+        const mapStatus = (rawStatus: string): FunctionStats["status"] => {
+          switch (rawStatus.toLowerCase()) {
+            case "deployed":
+              return "deployed";
+            case "undeployed":
+              return "undeployed";
+            case "paused":
+              return "paused";
+            case "deploying":
+              return "deploying";
+            case "undeploying":
+              return "undeploying";
+            default:
+              log(`Unknown status: ${rawStatus}, defaulting to 'undeployed'`);
+              return "undeployed";
+          }
+        };
+
+        const functionStats: FunctionStats = {
+          status: mapStatus(status.app.composite_status),
           success:
             executionStats.on_update_success + executionStats.on_delete_success,
           failure:
@@ -254,16 +290,26 @@ export async function getFunctionStats(
           backlog: executionStats.agg_queue_size,
           timeout: failureStats.timeout_count,
           curl: executionStats.curl,
-          dcp_backlog: executionStats.dcp_backlog,
+          dcp_backlog: 0, // You might need to get this from a separate API call
           execution_stats: executionStats,
           failure_stats: failureStats,
         };
+
+        // Log the processed function stats
+        log(
+          `Processed stats for ${functionName}:`,
+          JSON.stringify(functionStats, null, 2),
+        );
+
+        return functionStats;
       } catch (err) {
         if (
           err instanceof Error &&
           err.message.includes("HTTP error! status: 400")
         ) {
-          // Function might be undeployed or in an invalid state
+          log(
+            `Function ${functionName} appears to be undeployed or in an invalid state`,
+          );
           return {
             status: "undeployed",
             success: 0,
@@ -276,7 +322,8 @@ export async function getFunctionStats(
             failure_stats: {} as FailureStats,
           };
         }
-        throw err; // Re-throw other errors
+        error(`Error fetching stats for function ${functionName}:`, err);
+        throw err;
       }
     },
     {
