@@ -22,12 +22,11 @@ import {
   PeriodicExportingMetricReader,
   ConsoleMetricExporter,
 } from "@opentelemetry/sdk-metrics";
-import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
-import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import {
-  BatchLogRecordProcessor,
   LoggerProvider,
+  BatchLogRecordProcessor,
 } from "@opentelemetry/sdk-logs";
+import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import * as api from "@opentelemetry/api-logs";
 import { config } from "$config";
 
@@ -66,12 +65,12 @@ api.logs.setGlobalLoggerProvider(loggerProvider);
 // Set up MetricReaders
 const consoleMetricReader = new PeriodicExportingMetricReader({
   exporter: new ConsoleMetricExporter(),
-  exportIntervalMillis: 600000, // Export to OTLP every 10 minutes
+  exportIntervalMillis: config.openTelemetry.CONSOLE_METRIC_READER_INTERVAL,
 });
 
 const otlpMetricReader = new PeriodicExportingMetricReader({
   exporter: otlpMetricExporter,
-  exportIntervalMillis: 1800000, // Export to OTLP every 30 minutes
+  exportIntervalMillis: config.openTelemetry.METRIC_READER_INTERVAL,
 });
 
 // Set up MeterProvider
@@ -80,36 +79,28 @@ const meterProvider = new MeterProvider({
   readers: [consoleMetricReader, otlpMetricReader],
 });
 
-// Set this MeterProvider to be global to the app being instrumented.
+// Set this MeterProvider to be global to the app being instrumented. -> For multiple Metric Readers
 metrics.setGlobalMeterProvider(meterProvider);
 
-// Node SDK for OpenTelemetry
+// Node SDK for OpenTelemetry without metricReader
 const sdk = new NodeSDK({
   resource: resource,
   traceExporter,
   spanProcessors: [new BatchSpanProcessor(traceExporter)],
-  metricReader: otlpMetricReader, // Use OTLP reader for the SDK
   logRecordProcessor: new BatchLogRecordProcessor(logExporter),
   instrumentations: [
     getNodeAutoInstrumentations({
       "@opentelemetry/instrumentation-aws-lambda": { enabled: false },
       "@opentelemetry/instrumentation-fs": { enabled: false },
-      "@opentelemetry/instrumentation-http": { enabled: true },
-      "@opentelemetry/instrumentation-winston": { enabled: true },
     }),
-    new WinstonInstrumentation({ enabled: true }),
+    // new WinstonInstrumentation({ enabled: true }),
   ],
 });
-
-export const meter = metrics.getMeter("couchbase-eventing-metrics");
 
 // Start the SDK
 try {
   sdk.start();
   console.log("OpenTelemetry SDK started with auto-instrumentation");
-  console.log("Console Metric export:", consoleMetricReader);
-  console.log("OTLP Metric export:", otlpMetricReader);
-  console.log("Metrics endpoint:", config.openTelemetry.METRICS_ENDPOINT);
 } catch (error) {
   console.error("Error starting OpenTelemetry SDK:", error);
 }
@@ -124,3 +115,4 @@ process.on("SIGTERM", () => {
 });
 
 export const otelSDK = sdk;
+export const meter = metrics.getMeter("couchbase-eventing-metrics");
