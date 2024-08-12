@@ -2,39 +2,67 @@
 
 import {
   getFunctionList,
-  getFunctionStats,
+  checkFunctionStatus,
+  checkExecutionStats,
+  checkFailureStats,
+  checkDcpBacklogSize,
 } from "../services/couchbaseServices";
-import { recordAllMetrics } from "../metrics/couchbaseMetrics";
+import {
+  recordFunctionStatus,
+  recordExecutionStats,
+  recordFailureStats,
+  recordDcpBacklog,
+} from "../metrics/couchbaseMetrics";
 import { log, warn } from "$utils";
 
 export async function monitorCouchbaseFunctions() {
   try {
     const functionList = await getFunctionList();
-    log(`Retrieved ${functionList.length} functions to monitor`);
+    log(`Retrieved ${functionList.length} functions for Metrics monitoring`);
 
     for (const functionName of functionList) {
       try {
-        log(`Fetching stats for function: ${functionName}`);
-        const stats = await getFunctionStats(functionName);
-        recordAllMetrics(functionName, stats);
-        log(`Successfully recorded metrics for function: ${functionName}`);
+        log(`Fetching Metrics for Eventing function: ${functionName}`);
+
+        const [status, executionStats, failureStats, dcpBacklog] =
+          await Promise.all([
+            checkFunctionStatus(functionName),
+            checkExecutionStats(functionName),
+            checkFailureStats(functionName),
+            checkDcpBacklogSize(functionName),
+          ]);
+
+        log(`Received Metrics for ${functionName}`);
+
+        // Record metrics individually
+        recordFunctionStatus(functionName, status);
+        recordExecutionStats(functionName, executionStats);
+        recordFailureStats(functionName, failureStats);
+        recordDcpBacklog(functionName, dcpBacklog);
+
+        log(
+          `Successfully recorded Metrics for Eventing function: ${functionName}`,
+        );
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
-        warn(`Error monitoring function ${functionName}: ${errorMessage}`, {
-          functionName,
-          error: errorMessage,
-        });
+        warn(
+          `Error in Couchbase Eventing Metrics monitoring for function ${functionName}: ${errorMessage}`,
+          {
+            functionName,
+            error: errorMessage,
+          },
+        );
       }
     }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    warn("Error in Couchbase function monitoring:", {
+    warn("Error in Couchbase Eventing Metrics monitoring:", {
       error: errorMessage,
     });
   }
 }
 
 export function startCouchbaseMonitoring(intervalMs: number = 60000) {
-  log("Starting Couchbase function monitoring...");
+  log("Starting Couchbase Eventing Metrics monitoring...");
   setInterval(monitorCouchbaseFunctions, intervalMs);
 }
