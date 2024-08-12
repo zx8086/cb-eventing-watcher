@@ -9,7 +9,6 @@ import {
   updateFunctionStatus,
   removeOutdatedFunctions,
 } from "$lib/index.ts";
-
 import {
   getFunctionList,
   checkFunctionStatus,
@@ -19,14 +18,22 @@ import {
   sendSlackAlert,
   AlertSeverity,
 } from "$services/index.ts";
-
 import { startCouchbaseMonitoring } from "./monitoring/couchbaseMonitor";
+import type { Server } from "bun";
+
+// Create variables to store the cron job and health check server
+let cronJob: cron.ScheduledTask | null = null;
+let healthServer: Server | null = null;
+let isShuttingDown = false;
+
+// Add a startup timestamp
+const startupTimestamp = Date.now();
 
 async function checkEventingService(): Promise<void> {
   log("Running checkEventingService...");
   try {
     const functionList = await getFunctionList();
-    log(`Found ${functionList.length} functions`, {
+    log(`Found ${functionList.length} Eventing functions`, {
       functionCount: functionList.length,
     });
 
@@ -55,7 +62,7 @@ async function checkEventingService(): Promise<void> {
             processingStatus: status.app.processing_status,
           });
           await sendSlackAlert(
-            "Eventing Function: ${functionName} requires redeployment",
+            `Eventing Function: ${functionName} requires redeployment`,
             {
               severity: AlertSeverity.WARNING,
               functionName: functionName,
@@ -68,20 +75,20 @@ async function checkEventingService(): Promise<void> {
           );
         }
 
-        if (dcpBacklog.dcp_backlog > config.DCP_BACKLOG_THRESHOLD) {
+        if (dcpBacklog.dcp_backlog > config.eventing.DCP_BACKLOG_THRESHOLD) {
           functionHealthy = false;
           statusMessage = "DCP backlog size exceeds threshold";
           error(`Function ${functionName} DCP backlog size exceeds threshold`, {
             function: functionName,
             backlogSize: dcpBacklog.dcp_backlog,
-            threshold: config.DCP_BACKLOG_THRESHOLD,
+            threshold: config.eventing.DCP_BACKLOG_THRESHOLD,
           });
           await sendSlackAlert("DCP backlog size exceeds threshold", {
             severity: AlertSeverity.ERROR,
             functionName: functionName,
             additionalContext: {
               backlogSize: dcpBacklog.dcp_backlog,
-              threshold: config.DCP_BACKLOG_THRESHOLD,
+              threshold: config.eventing.DCP_BACKLOG_THRESHOLD,
             },
           });
         }
@@ -109,13 +116,13 @@ async function checkEventingService(): Promise<void> {
 
         if (failureStats.timeout_count > 0) {
           functionHealthy = false;
-          statusMessage = `Eventing Function: ${functionName} has a timeouts detected`;
-          warn(`Eventing Function: ${functionName} has  atimeouts detected`, {
+          statusMessage = `Eventing Function: ${functionName} has timeouts detected`;
+          warn(`Eventing Function: ${functionName} has timeouts detected`, {
             function: functionName,
             timeoutCount: failureStats.timeout_count,
           });
           await sendSlackAlert(
-            `Eventing Function: ${functionName} has  atimeouts detected`,
+            `Eventing Function: ${functionName} has timeouts detected`,
             {
               severity: AlertSeverity.WARNING,
               functionName: functionName,
@@ -180,104 +187,147 @@ async function checkEventingService(): Promise<void> {
   }
 }
 
-async function startScheduler(): Promise<boolean> {
-  log(
-    `Attempting to schedule job with cron expression: ${config.CRON_SCHEDULE}`,
-  );
-  try {
-    cron.schedule(config.CRON_SCHEDULE, checkEventingService);
-    log("Cron job scheduled successfully");
-    return true;
-  } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    error(`Failed to schedule cron job`, {
-      error: errorMessage,
-      cronSchedule: config.CRON_SCHEDULE,
-    });
-    await sendSlackAlert(
-      "Failed to schedule Couchbase Eventing monitoring job",
-      {
-        severity: AlertSeverity.ERROR,
-        additionalContext: {
-          error: errorMessage,
-          cronSchedule: config.CRON_SCHEDULE,
-        },
-      },
-    );
-    return false;
-  }
+function startScheduler(): void {
+  log(`Scheduling job with cron expression: ${config.app.CRON_SCHEDULE}`);
+  cronJob = cron.schedule(config.app.CRON_SCHEDULE, checkEventingService, {
+    scheduled: true,
+    timezone: "CET",
+  });
+  log("Cron job scheduled successfully");
 }
 
-function simpleScheduler(): void {
-  // const intervalMs = 5 * 60 * 1000; // 5 minutes in milliseconds
-  const intervalMs = 10 * 60 * 1000; // 10 minutes in milliseconds
+async function gracefulShutdown(signal: string) {
+  if (isShuttingDown) {
+    log("Shutdown already in progress");
+    return;
+  }
 
-  async function runcheckEventingService() {
-    try {
-      await checkEventingService();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Unknown error";
-      error(`Error in simple scheduler`, { error: errorMessage });
-      await sendSlackAlert("Error in Couchbase monitoring simple scheduler", {
-        severity: AlertSeverity.ERROR,
-        additionalContext: { error: errorMessage },
-      });
-    } finally {
-      log(`Scheduling next check in ${intervalMs / 1000} seconds`);
-      setTimeout(runcheckEventingService, intervalMs);
+  isShuttingDown = true;
+  log(`Received ${signal}. Starting graceful shutdown...`);
+
+  try {
+    // Stop the cron job if it's running
+    if (cronJob) {
+      cronJob.stop();
+      log("Cron job stopped");
     }
+
+    // Stop the health check server
+    if (healthServer) {
+      healthServer.stop(true); // true for immediate stop
+      log("Health check server stopped");
+    } else {
+      log("No health check server to stop.");
+    }
+
+    // Perform any other cleanup tasks here
+    // For example, closing database connections, etc.
+
+    log("Graceful shutdown completed");
+  } catch (err) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    error(`Error during graceful shutdown: ${errorMessage}`);
+  } finally {
+    const shutdownDuration = Date.now() - startupTimestamp;
+    log(
+      `Application ran for ${shutdownDuration / 1000} seconds before shutdown`,
+    );
+    log("Exiting process");
+    process.exit(0);
   }
-  log(`Starting simple scheduler with ${intervalMs / 1000} second interval`);
-  runcheckEventingService();
 }
 
-// Start the application
-log("Couchbase Eventing Watcher starting...");
-(async () => {
+// Register the graceful shutdown handler for different signals
+["SIGINT", "SIGTERM", "SIGQUIT"].forEach((signal) => {
+  process.on(signal, () => gracefulShutdown(signal));
+});
+
+// Handle unhandled rejections
+process.on("unhandledRejection", (reason, promise) => {
+  error("Unhandled Rejection:", {
+    reason: reason instanceof Error ? reason.stack : String(reason),
+    promise: String(promise),
+  });
+  // Optionally, you could trigger the shutdown process here
+  // gracefulShutdown('UNHANDLED_REJECTION');
+});
+
+// Handle uncaught exceptions
+process.on("uncaughtException", (err) => {
+  error("Uncaught Exception:", { error: err.stack });
+  // It's generally considered best practice to crash on uncaught exceptions
+  process.exit(1);
+});
+
+async function startApplication() {
+  log(`Couchbase Eventing Watcher starting... (PID: ${process.pid})`);
   try {
-    const healthServer = startHealthCheckServer(
-      config.app.HEALTH_CHECK_PORT || 8080,
-    );
+    healthServer = startHealthCheckServer(config.app.HEALTH_CHECK_PORT || 8080);
 
     // Start the Couchbase monitoring
     startCouchbaseMonitoring();
     log("Couchbase monitoring started");
 
-    if (await startScheduler()) {
-      log("Using cron scheduler", { cronSchedule: config.CRON_SCHEDULE });
-      await sendSlackAlert(
-        "Couchbase Eventing Watcher started with cron scheduler",
-        {
-          severity: AlertSeverity.INFO,
-          additionalContext: { cronSchedule: config.CRON_SCHEDULE },
-        },
-      );
-    } else {
-      log("Falling back to simple scheduler", { interval: "5 minutes" });
-      simpleScheduler();
-      await sendSlackAlert(
-        "Couchbase Eventing Watcher started with simple scheduler",
-        {
-          severity: AlertSeverity.INFO,
-          additionalContext: { interval: "5 minutes" },
-        },
-      );
-    }
+    // Start the scheduler
+    startScheduler();
 
+    await sendSlackAlert("Couchbase Eventing Watcher started", {
+      severity: AlertSeverity.INFO,
+      additionalContext: {
+        cronSchedule: config.app.CRON_SCHEDULE,
+        pid: process.pid,
+        startupTimestamp: new Date(startupTimestamp).toISOString(),
+      },
+    });
+
+    // Run the first check immediately
     await checkEventingService();
     setApplicationStatus(true);
+
+    log("Application startup completed. Running in the foreground...");
+
+    // Main application loop
+    while (!isShuttingDown) {
+      try {
+        // You can add any recurring tasks here if needed
+        // For example, you might want to run a health check or log status
+        log("Application is still running...");
+
+        // Sleep for a while before the next iteration
+        await new Promise((resolve) => setTimeout(resolve, 60000)); // Sleep for 1 minute
+      } catch (loopError) {
+        error(
+          `Error in main application loop: ${
+            loopError instanceof Error ? loopError.message : String(loopError)
+          }`,
+        );
+      }
+    }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    error(`Failed to start Couchbase Eventing Watcher`, {
+    error(`Failed to start or run Couchbase Eventing Watcher`, {
       error: errorMessage,
     });
-    await sendSlackAlert("Failed to start Couchbase Eventing Watcher", {
+    await sendSlackAlert("Failed to start or run Couchbase Eventing Watcher", {
       severity: AlertSeverity.ERROR,
-      additionalContext: { error: errorMessage },
+      additionalContext: { error: errorMessage, pid: process.pid },
     });
     setApplicationStatus(false);
+    throw err;
   }
-})();
+}
 
-// Update health status periodically
-setInterval(checkEventingService, config.eventing.SERVICE_CHECK_INTERVAL); // Check every minute
+// Run the application
+startApplication().catch((err) => {
+  console.error("Unhandled error in startApplication:", err);
+  process.exit(1);
+});
+
+process.on("exit", (code) => {
+  const runDuration = Date.now() - startupTimestamp;
+  console.log(
+    `Process ${process.pid} is about to exit with code: ${code}. Ran for ${
+      runDuration / 1000
+    } seconds.`,
+  );
+});

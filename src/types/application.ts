@@ -15,6 +15,8 @@ export interface OpenTelemetryConfig {
   TRACES_ENDPOINT: string;
   METRICS_ENDPOINT: string;
   LOGS_ENDPOINT: string;
+  METRIC_READER_INTERVAL: number;
+  CONSOLE_METRIC_READER_INTERVAL?: number;
 }
 
 export interface AppConfig {

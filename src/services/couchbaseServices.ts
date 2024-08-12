@@ -54,7 +54,7 @@ async function fetchWithAuth<T>(
       span.setAttribute("http.url", url);
       span.setAttribute("http.method", "GET");
 
-      log(`Fetching from Couchbase Eventing Service: ${url}`);
+      log(`Fetching list of functions from Eventing Service API: ${url}`);
 
       try {
         const carrier = {};
@@ -73,7 +73,9 @@ async function fetchWithAuth<T>(
 
         const data = await response.json();
 
-        log(`Successfully fetched from ${url}`);
+        log(
+          `Successfully fetched list of functions from Eventing Service API: ${url}`,
+        );
 
         span.setStatus({ code: SpanStatusCode.OK });
         return data;
