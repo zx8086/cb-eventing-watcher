@@ -188,11 +188,17 @@ async function checkEventingService(): Promise<void> {
 }
 
 function startScheduler(): void {
-  log(`Scheduling job with cron expression: ${config.app.CRON_SCHEDULE}`);
-  cronJob = cron.schedule(config.app.CRON_SCHEDULE, checkEventingService, {
-    scheduled: true,
-    timezone: "CET",
-  });
+  log(
+    `Scheduling job with cron expression: ${config.application.CRON_SCHEDULE}`,
+  );
+  cronJob = cron.schedule(
+    config.application.CRON_SCHEDULE,
+    checkEventingService,
+    {
+      scheduled: true,
+      timezone: "CET",
+    },
+  );
   log("Cron job scheduled successfully");
 }
 
@@ -262,7 +268,9 @@ process.on("uncaughtException", (err) => {
 async function startApplication() {
   log(`Couchbase Eventing Watcher starting... (PID: ${process.pid})`);
   try {
-    healthServer = startHealthCheckServer(config.app.HEALTH_CHECK_PORT || 8080);
+    healthServer = startHealthCheckServer(
+      config.application.HEALTH_CHECK_PORT || 8080,
+    );
 
     // Start the Couchbase monitoring
     startCouchbaseMonitoring();
@@ -274,7 +282,7 @@ async function startApplication() {
     await sendSlackAlert("Couchbase Eventing Watcher started", {
       severity: AlertSeverity.INFO,
       additionalContext: {
-        cronSchedule: config.app.CRON_SCHEDULE,
+        cronSchedule: config.application.CRON_SCHEDULE,
         pid: process.pid,
         startupTimestamp: new Date(startupTimestamp).toISOString(),
       },

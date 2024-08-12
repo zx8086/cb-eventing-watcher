@@ -11,7 +11,7 @@ const rootDir = path.join(__dirname, "..", "..");
 const logsDir = path.join(rootDir, "logs");
 
 export const logger = winston.createLogger({
-  level: config.app.LOG_LEVEL,
+  level: config.application.LOG_LEVEL,
   format: ecsFormat({
     convertReqRes: true,
     apmIntegration: true,
@@ -19,14 +19,14 @@ export const logger = winston.createLogger({
   transports: [
     new winston.transports.Console(),
     new OpenTelemetryTransportV3({
-      level: config.app.LOG_LEVEL,
+      level: config.application.LOG_LEVEL,
     }),
     new DailyRotateFile({
       filename: path.join(logsDir, "couchbase-eventing-watcher-%DATE%.log"),
       datePattern: "YYYY-MM-DD",
       zippedArchive: true,
-      maxSize: config.app.LOG_MAX_SIZE,
-      maxFiles: config.app.LOG_MAX_FILES,
+      maxSize: config.application.LOG_MAX_SIZE,
+      maxFiles: config.application.LOG_MAX_FILES,
     }),
   ],
 });

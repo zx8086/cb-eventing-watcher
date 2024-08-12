@@ -25,7 +25,7 @@ import {
 
 const tracer = trace.getTracer("couchbase-eventing-watcher");
 
-const baseURL = config.eventing.COUCHBASE_URL;
+const baseURL = config.eventing.COUCHBASE_HOST;
 const headers = new Headers({
   Authorization:
     "Basic " +

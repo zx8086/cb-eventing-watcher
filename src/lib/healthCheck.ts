@@ -39,7 +39,7 @@ export function setApplicationStatus(healthy: boolean) {
 }
 
 export function startHealthCheckServer(
-  port: number = config.app.HEALTH_CHECK_PORT,
+  port: number = config.application.HEALTH_CHECK_PORT,
 ): Server {
   const server = Bun.serve({
     port: port,
@@ -67,7 +67,7 @@ export function startHealthCheckServer(
       });
     },
   });
-  log(`Health Check Server started on ${server.url}`, { serverId: server.id });
+  log(`Health Check Server started on ${server.url}`);
 
   setInterval(() => {
     tracer.startActiveSpan("scheduled_health_check", async (span) => {
@@ -79,7 +79,7 @@ export function startHealthCheckServer(
         span.end();
       }
     });
-  }, config.app.HEALTH_CHECK_INTERVAL);
+  }, config.application.HEALTH_CHECK_INTERVAL);
 
   return server;
 }
@@ -216,7 +216,7 @@ async function runHealthCheck(span: trace.Span): Promise<Response> {
 
   if (
     responseJson !== lastLoggedResponse ||
-    now - lastLoggedTime > config.app.HEALTH_CHECK_LOG_INTERVAL
+    now - lastLoggedTime > config.application.HEALTH_CHECK_LOG_INTERVAL
   ) {
     log("Health check results", {
       traceId: span.spanContext().traceId,

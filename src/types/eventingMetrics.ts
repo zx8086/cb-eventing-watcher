@@ -76,7 +76,7 @@ export interface FailureStats {
 }
 
 export interface FunctionStats {
-  status: "deployed" | "undeployed" | "paused" | "deploying" | "undeploying"; // Add any other possible status values
+  status: "deployed" | "undeployed" | "paused" | "deploying" | "undeploying";
   success: number;
   failure: number;
   backlog: number;

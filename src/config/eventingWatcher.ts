@@ -2,51 +2,53 @@
 
 import type { Config } from "$types";
 
-function getOrThrow(envVariable: any, name: string): string {
-  if (!envVariable) {
-    throw new Error(`Required environment variable ${name} is not set`);
+function getEnvOrThrow(key: string): string {
+  const value = Bun.env[key];
+  if (value === undefined) {
+    throw new Error(`Required environment variable ${key} is not set`);
   }
-  return envVariable;
+  return value;
+}
+
+function getEnvNumberOrThrow(key: string): number {
+  const value = getEnvOrThrow(key);
+  const numberValue = Number(value);
+  if (isNaN(numberValue)) {
+    throw new Error(`Environment variable ${key} must be a valid number`);
+  }
+  return numberValue;
 }
 
 export const config: Config = {
+  application: {
+    HEALTH_CHECK_PORT: getEnvNumberOrThrow("HEALTH_CHECK_PORT"),
+    HEALTH_CHECK_LOG_INTERVAL: getEnvNumberOrThrow("HEALTH_CHECK_LOG_INTERVAL"),
+    HEALTH_CHECK_INTERVAL: getEnvNumberOrThrow("HEALTH_CHECK_INTERVAL"),
+    CRON_SCHEDULE: getEnvOrThrow("CRON_SCHEDULE"),
+    LOG_LEVEL: getEnvOrThrow("LOG_LEVEL"),
+    LOG_MAX_SIZE: getEnvOrThrow("LOG_MAX_SIZE"),
+    LOG_MAX_FILES: getEnvOrThrow("LOG_MAX_FILES"),
+  },
   eventing: {
-    COUCHBASE_URL: getOrThrow(Bun.env.COUCHBASE_HOST, "COUCHBASE_HOST"),
-    COUCHBASE_USERNAME: getOrThrow(
-      Bun.env.COUCHBASE_USERNAME,
-      "COUCHBASE_USERNAME",
-    ),
-    COUCHBASE_PASSWORD: getOrThrow(
-      Bun.env.COUCHBASE_PASSWORD,
-      "COUCHBASE_PASSWORD",
-    ),
-    SERVICE_CHECK_INTERVAL: 5 * 60 * 1000, // 5 minutes
-    DCP_BACKLOG_THRESHOLD: Number(process.env.DCP_BACKLOG_THRESHOLD) || 1000,
+    COUCHBASE_HOST: getEnvOrThrow("COUCHBASE_HOST"),
+    COUCHBASE_USERNAME: getEnvOrThrow("COUCHBASE_USERNAME"),
+    COUCHBASE_PASSWORD: getEnvOrThrow("COUCHBASE_PASSWORD"),
+    SERVICE_CHECK_INTERVAL: getEnvNumberOrThrow("SERVICE_CHECK_INTERVAL"),
+    DCP_BACKLOG_THRESHOLD: getEnvNumberOrThrow("DCP_BACKLOG_THRESHOLD"),
   },
   openTelemetry: {
-    SERVICE_NAME: "Couchbase Eventing Service Watcher",
-    SERVICE_VERSION: "1.0.0",
-    DEPLOYMENT_ENVIRONMENT: "development",
-    TRACES_ENDPOINT: "http://192.168.0.9:4318/v1/traces",
-    METRICS_ENDPOINT: "http://192.168.0.9:4318/v1/metrics",
-    LOGS_ENDPOINT: "http://192.168.0.9:4318/v1/logs",
-    METRIC_READER_INTERVAL: 1800000, // Export to OTLP every 30 minutes
-    CONSOLE_METRIC_READER_INTERVAL: 600000, // Export to OTLP every 10 minutes
-  },
-  app: {
-    HEALTH_CHECK_PORT: 8080,
-    HEALTH_CHECK_LOG_INTERVAL: 3600000, // 1 hour in milliseconds
-    HEALTH_CHECK_INTERVAL: 5 * 60 * 1000, // 5 minutes
-    CRON_SCHEDULE:
-      getOrThrow(Bun.env.CRON_SCHEDULE, "CRON_SCHEDULE") || "30 * * * *",
-    LOG_LEVEL: "debug",
-    LOG_MAX_SIZE: "20m",
-    LOG_MAX_FILES: "14d",
+    SERVICE_NAME: getEnvOrThrow("SERVICE_NAME"),
+    SERVICE_VERSION: getEnvOrThrow("SERVICE_VERSION"),
+    DEPLOYMENT_ENVIRONMENT: getEnvOrThrow("DEPLOYMENT_ENVIRONMENT"),
+    TRACES_ENDPOINT: getEnvOrThrow("TRACES_ENDPOINT"),
+    METRICS_ENDPOINT: getEnvOrThrow("METRICS_ENDPOINT"),
+    LOGS_ENDPOINT: getEnvOrThrow("LOGS_ENDPOINT"),
+    METRIC_READER_INTERVAL: getEnvNumberOrThrow("METRIC_READER_INTERVAL"),
+    CONSOLE_METRIC_READER_INTERVAL: getEnvNumberOrThrow(
+      "CONSOLE_METRIC_READER_INTERVAL",
+    ),
   },
   messaging: {
-    SLACK_WEBHOOK_URL: getOrThrow(
-      Bun.env.SLACK_WEBHOOK_URL,
-      "SLACK_WEBHOOK_URL",
-    ),
+    SLACK_WEBHOOK_URL: getEnvOrThrow("SLACK_WEBHOOK_URL"),
   },
 };

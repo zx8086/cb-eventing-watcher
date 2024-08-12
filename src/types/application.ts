@@ -1,7 +1,17 @@
 /* src/types/application.ts */
 
+export interface ApplicationConfig {
+  HEALTH_CHECK_PORT: number;
+  HEALTH_CHECK_LOG_INTERVAL: number;
+  HEALTH_CHECK_INTERVAL: number;
+  CRON_SCHEDULE: string;
+  LOG_LEVEL: string;
+  LOG_MAX_SIZE: string;
+  LOG_MAX_FILES: string;
+}
+
 export interface EventingConfig {
-  COUCHBASE_URL: string;
+  COUCHBASE_HOST: string;
   COUCHBASE_USERNAME: string;
   COUCHBASE_PASSWORD: string;
   SERVICE_CHECK_INTERVAL: number;
@@ -19,23 +29,13 @@ export interface OpenTelemetryConfig {
   CONSOLE_METRIC_READER_INTERVAL?: number;
 }
 
-export interface AppConfig {
-  HEALTH_CHECK_PORT: number;
-  HEALTH_CHECK_LOG_INTERVAL: number;
-  HEALTH_CHECK_INTERVAL: number;
-  CRON_SCHEDULE: string;
-  LOG_LEVEL: string;
-  LOG_MAX_SIZE: string;
-  LOG_MAX_FILES: string;
-}
-
 export interface MessagingConfig {
   SLACK_WEBHOOK_URL: string;
 }
 
 export interface Config {
+  application: ApplicationConfig;
   eventing: EventingConfig;
   openTelemetry: OpenTelemetryConfig;
-  app: AppConfig;
   messaging: MessagingConfig;
 }
