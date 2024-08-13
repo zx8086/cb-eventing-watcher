@@ -3,7 +3,7 @@
 import cron from "node-cron";
 import { config } from "$config";
 import { log, error, warn, debug, getUptime, initializeUptime } from "$utils";
-import { startHealthCheckServer, setApplicationStatus } from "$lib/index.ts";
+import { startHealthCheckServer, setApplicationStatus } from "$lib";
 import {
   getFunctionList,
   checkFunctionStatus,
@@ -12,16 +12,14 @@ import {
   checkDcpBacklogSize,
   sendSlackAlert,
   AlertSeverity,
-} from "$services/index.ts";
+} from "$services";
 import { startCouchbaseMonitoring } from "./monitoring/couchbaseMonitor";
 import type { Server } from "bun";
 
-// Create variables to store the cron job and health check server
 let cronJob: cron.ScheduledTask | null = null;
 let healthServer: Server | null = null;
 let isShuttingDown = false;
 
-// Add a startup timestamp and initialize uptime
 const startupTimestamp = Date.now();
 initializeUptime();
 
@@ -66,6 +64,7 @@ async function checkEventingService(): Promise<void> {
                 status: status.app.composite_status,
                 deploymentStatus: status.app.deployment_status,
                 processingStatus: status.app.processing_status,
+                timestamp: new Date().toISOString(),
               },
             },
           );
@@ -85,6 +84,8 @@ async function checkEventingService(): Promise<void> {
             additionalContext: {
               backlogSize: dcpBacklog.dcp_backlog,
               threshold: config.eventing.DCP_BACKLOG_THRESHOLD,
+              status: status.app.composite_status,
+              timestamp: new Date().toISOString(),
             },
           });
         }
@@ -106,6 +107,8 @@ async function checkEventingService(): Promise<void> {
             additionalContext: {
               onUpdateFailures: executionStats.on_update_failure,
               onDeleteFailures: executionStats.on_delete_failure,
+              status: status.app.composite_status,
+              timestamp: new Date().toISOString(),
             },
           });
         }
@@ -125,12 +128,14 @@ async function checkEventingService(): Promise<void> {
               functionName: functionName,
               additionalContext: {
                 timeoutCount: failureStats.timeout_count,
+                status: status.app.composite_status,
+                timestamp: new Date().toISOString(),
               },
             },
           );
         }
 
-        // Instead of updating function status, add it to an object
+        // Loop status information to functionStatuses
         functionStatuses.push({
           name: functionName,
           status: functionHealthy ? "success" : "error",
@@ -138,6 +143,9 @@ async function checkEventingService(): Promise<void> {
           executionStats,
           failureStats,
           dcpBacklog,
+          compositeStatus: status.app.composite_status,
+          deploymentStatus: status.app.deployment_status,
+          processingStatus: status.app.processing_status,
         });
 
         debug(`Eventing Function: ${functionName} check completed`, {
@@ -155,11 +163,14 @@ async function checkEventingService(): Promise<void> {
           error: errorMessage,
         });
 
-        // Add error status to our collection
+        // Loop error statuses to our collection, including any available status information (might remove the unknowns as above)
         functionStatuses.push({
           name: functionName,
           status: "error",
           message: `Error checking function: ${errorMessage}`,
+          compositeStatus: "unknown",
+          deploymentStatus: "unknown",
+          processingStatus: "unknown",
         });
 
         await sendSlackAlert(
@@ -170,6 +181,7 @@ async function checkEventingService(): Promise<void> {
             additionalContext: {
               error: errorMessage,
               check: "Eventing Check",
+              timestamp: new Date().toISOString(),
             },
           },
         );
@@ -177,9 +189,6 @@ async function checkEventingService(): Promise<void> {
     }
 
     log("Finished checking all the Eventing Functions");
-
-    // You might want to do something with functionStatuses here,
-    // such as storing it for the health check to use later
 
     setApplicationStatus(true);
   } catch (err) {
@@ -191,6 +200,7 @@ async function checkEventingService(): Promise<void> {
       additionalContext: {
         error: errorMessage,
         stage: "Initial Eventing Function list fetch or overall process",
+        timestamp: new Date().toISOString(),
       },
     });
   }
@@ -221,21 +231,17 @@ async function gracefulShutdown(signal: string) {
   log(`Received ${signal}. Starting graceful shutdown...`);
 
   try {
-    // Stop the cron job if it's running
     if (cronJob) {
       cronJob.stop();
       log("Cron job stopped");
     }
 
-    // Stop the health check server
     if (healthServer) {
       healthServer.stop(true); // true for immediate stop
       log("Health check server stopped");
     } else {
       log("No health check server to stop.");
     }
-
-    // Perform any other cleanup tasks here
 
     log("Graceful shutdown completed");
   } catch (err) {
@@ -260,14 +266,11 @@ process.on("unhandledRejection", (reason, promise) => {
     reason: reason instanceof Error ? reason.stack : String(reason),
     promise: String(promise),
   });
-  // Optionally, you could trigger the shutdown process here
-  // gracefulShutdown('UNHANDLED_REJECTION');
 });
 
 // Handle uncaught exceptions
 process.on("uncaughtException", (err) => {
   error("Uncaught Exception:", { error: err.stack });
-  // It's generally considered best practice to crash on uncaught exceptions
   process.exit(1);
 });
 
@@ -278,13 +281,13 @@ async function startApplication() {
       config.application.HEALTH_CHECK_PORT || 8080,
     );
 
-    // Start the Couchbase monitoring
     startCouchbaseMonitoring();
     log("Couchbase monitoring started");
 
-    // Start the scheduler
     startScheduler();
+    log("Scheduler started");
 
+    // Slightly differeny way to see if i can align the time with local time vs ecs log format
     const startupTimestamp = Date.now();
     const date = new Date(startupTimestamp);
     // Offset by 2 hours (2 hours * 60 minutes * 60 seconds * 1000 milliseconds)
@@ -303,7 +306,7 @@ async function startApplication() {
       },
     });
 
-    // Run the first check immediately
+    // Run the first check immediately after starting
     await checkEventingService();
     setApplicationStatus(true);
 
@@ -312,11 +315,8 @@ async function startApplication() {
     // Main application loop
     while (!isShuttingDown) {
       try {
-        // You can add any recurring tasks here if needed
-        // For example, you might want to run a health check or log status
         log("Application is still running...");
 
-        // Sleep for a while before the next iteration
         await new Promise((resolve) => setTimeout(resolve, 60000)); // Sleep for 1 minute
       } catch (loopError) {
         error(
@@ -340,7 +340,7 @@ async function startApplication() {
   }
 }
 
-// Run the application
+// Main start the Watcher Service
 startApplication().catch((err) => {
   console.error("Unhandled error in startApplication:", err);
   process.exit(1);

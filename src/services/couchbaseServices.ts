@@ -8,7 +8,6 @@ import type {
   ExecutionStats,
   FailureStats,
   DcpBacklogSize,
-  FunctionStats,
 } from "../types/index.ts";
 import {
   trace,
@@ -23,7 +22,22 @@ import {
   SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
 } from "@opentelemetry/semantic-conventions";
 
-const tracer = trace.getTracer("couchbase-eventing-watcher");
+// Updated FunctionStats interface
+export interface FunctionStats {
+  status: "deployed" | "undeployed" | "paused" | "deploying" | "undeploying";
+  success: number;
+  failure: number;
+  backlog: number;
+  timeout: number;
+  dcp_backlog: number;
+  execution_stats: ExecutionStats;
+  failure_stats: FailureStats;
+}
+
+const tracer = trace.getTracer(
+  config.openTelemetry.SERVICE_NAME,
+  config.openTelemetry.SERVICE_VERSION,
+);
 
 const baseURL = config.eventing.COUCHBASE_HOST;
 const headers = new Headers({
@@ -35,7 +49,6 @@ const headers = new Headers({
   "Content-Type": "application/json",
 });
 
-// Fetching data from Couchbase
 async function fetchWithAuth<T>(
   endpoint: string,
   spanName: string,
@@ -54,7 +67,7 @@ async function fetchWithAuth<T>(
       span.setAttribute("http.url", url);
       span.setAttribute("http.method", "GET");
 
-      log(`Fetching list of functions from Eventing Service API: ${url}`);
+      log(`Fetching a list of functions from the Eventing Service API: ${url}`);
 
       try {
         const carrier = {};
@@ -74,7 +87,7 @@ async function fetchWithAuth<T>(
         const data = await response.json();
 
         log(
-          `Successfully fetched list of functions from Eventing Service API: ${url}`,
+          `Successfully fetched a list of functions from Eventing Service API: ${url}`,
         );
 
         span.setStatus({ code: SpanStatusCode.OK });
@@ -89,7 +102,6 @@ async function fetchWithAuth<T>(
   );
 }
 
-// Wrapping operations with trace and logging
 async function tracedOperation<T>(
   operationName: string,
   operation: () => Promise<T>,
@@ -123,7 +135,6 @@ async function tracedOperation<T>(
   );
 }
 
-// Error handling
 function handleError(err: unknown, operationName: string, span: any) {
   const errorMessage = err instanceof Error ? err.message : "Unknown error";
   const errorType =
@@ -144,7 +155,6 @@ function handleError(err: unknown, operationName: string, span: any) {
   span.setStatus({ code: SpanStatusCode.ERROR, message: errorMessage });
 }
 
-// Example usage in service functions
 export async function getFunctionList(): Promise<string[]> {
   return tracedOperation(
     "getFunctionList",
@@ -250,7 +260,6 @@ export async function getFunctionStats(
           checkFailureStats(functionName),
         ]);
 
-        // Detailed logging of raw data
         log(
           `Raw status data for ${functionName}:`,
           JSON.stringify(status, null, 2),
@@ -264,7 +273,6 @@ export async function getFunctionStats(
           JSON.stringify(failureStats, null, 2),
         );
 
-        // Helper function to map the status to the correct type
         const mapStatus = (rawStatus: string): FunctionStats["status"] => {
           switch (rawStatus.toLowerCase()) {
             case "deployed":
@@ -291,13 +299,11 @@ export async function getFunctionStats(
             executionStats.on_update_failure + executionStats.on_delete_failure,
           backlog: executionStats.agg_queue_size,
           timeout: failureStats.timeout_count,
-          curl: executionStats.curl,
           dcp_backlog: 0, // You might need to get this from a separate API call
           execution_stats: executionStats,
           failure_stats: failureStats,
         };
 
-        // Log the processed function stats
         log(
           `Processed stats for ${functionName}:`,
           JSON.stringify(functionStats, null, 2),
@@ -318,7 +324,6 @@ export async function getFunctionStats(
             failure: 0,
             backlog: 0,
             timeout: 0,
-            curl: { get: 0, post: 0, head: 0, put: 0, delete: 0 },
             dcp_backlog: 0,
             execution_stats: {} as ExecutionStats,
             failure_stats: {} as FailureStats,

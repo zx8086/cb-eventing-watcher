@@ -8,6 +8,7 @@ import type {
   FunctionStatus,
 } from "$types/eventing";
 import { log, error } from "$utils";
+import type { ObservableGauge, ObservableResult } from "@opentelemetry/api";
 
 // Manually define the keys for ExecutionStats that we want to measure
 const executionStatsKeys = [
@@ -35,7 +36,7 @@ const executionStatsMetrics = executionStatsKeys.reduce(
     );
     return acc;
   },
-  {} as Record<(typeof executionStatsKeys)[number], any>,
+  {} as Record<(typeof executionStatsKeys)[number], ObservableGauge>,
 );
 
 // Manually define the keys for FailureStats that we want to measure
@@ -60,7 +61,7 @@ const failureStatsMetrics = failureStatsKeys.reduce(
     );
     return acc;
   },
-  {} as Record<(typeof failureStatsKeys)[number], any>,
+  {} as Record<(typeof failureStatsKeys)[number], ObservableGauge>,
 );
 
 // Function status metric
@@ -90,8 +91,8 @@ export function recordExecutionStats(
     try {
       const value = stats[key];
       if (typeof value === "number") {
-        executionStatsMetrics[key].addCallback((observer) => {
-          observer.observe(value, { functionName });
+        executionStatsMetrics[key].addCallback((observableResult) => {
+          observableResult.observe(value, { functionName });
         });
         log(`Recorded execution stat ${key} for ${functionName}: ${value}`);
       }
@@ -112,8 +113,8 @@ export function recordExecutionStats(
               unit: "1",
             },
           )
-          .addCallback((observer) => {
-            observer.observe(curlCount, { functionName });
+          .addCallback((observableResult) => {
+            observableResult.observe(curlCount, { functionName });
           });
         log(
           `Recorded curl stat ${curlMethod} for ${functionName}: ${curlCount}`,
@@ -134,8 +135,8 @@ export function recordFailureStats(functionName: string, stats: FailureStats) {
     try {
       const value = stats[key];
       if (typeof value === "number") {
-        failureStatsMetrics[key].addCallback((observer) => {
-          observer.observe(value, { functionName });
+        failureStatsMetrics[key].addCallback((observableResult) => {
+          observableResult.observe(value, { functionName });
         });
         log(`Recorded failure stat ${key} for ${functionName}: ${value}`);
       }
@@ -151,8 +152,8 @@ export function recordDcpBacklog(
 ) {
   try {
     log(`Recording DCP backlog for ${functionName}`);
-    dcpBacklogGauge.addCallback((observer) => {
-      observer.observe(backlog.dcp_backlog, { functionName });
+    dcpBacklogGauge.addCallback((observableResult) => {
+      observableResult.observe(backlog.dcp_backlog, { functionName });
     });
     log(`Recorded DCP backlog for ${functionName}: ${backlog.dcp_backlog}`);
   } catch (err) {
@@ -168,8 +169,8 @@ export function recordFunctionStatus(
     log(`Recording function status for ${functionName}`);
     const statusValue =
       status.app.deployment_status && status.app.processing_status ? 1 : 0;
-    functionStatusGauge.addCallback((observer) => {
-      observer.observe(statusValue, { functionName });
+    functionStatusGauge.addCallback((observableResult) => {
+      observableResult.observe(statusValue, { functionName });
     });
     log(`Recorded function status for ${functionName}: ${statusValue}`);
   } catch (err) {
