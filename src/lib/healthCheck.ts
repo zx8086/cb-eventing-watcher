@@ -79,6 +79,38 @@ export function startHealthCheckServer(
 
 async function runHealthCheck(span: Span, url: URL): Promise<Response> {
   try {
+    const showDetailed = url.searchParams.get("detailed");
+    const filterName = url.searchParams.get("name");
+
+    // Validate parameters
+    if (
+      showDetailed !== null &&
+      showDetailed !== "true" &&
+      showDetailed !== "false"
+    ) {
+      return new Response(
+        JSON.stringify({
+          error: "Invalid 'detailed' parameter. Use 'true' or 'false'.",
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    if (filterName !== null && filterName.trim() === "") {
+      return new Response(
+        JSON.stringify({
+          error: "Invalid 'name' parameter. Provide a non-empty string.",
+        }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+
     const functionList = await getFunctionList();
     const functionStats = await Promise.all(
       functionList.map(async (functionName: string) => {
@@ -107,13 +139,32 @@ async function runHealthCheck(span: Span, url: URL): Promise<Response> {
         }
       }),
     );
-    const deployedFunctions = functionStats.filter(
+
+    let filteredFunctionStats = functionStats;
+    if (filterName) {
+      filteredFunctionStats = functionStats.filter((stats) =>
+        stats.name.includes(filterName),
+      );
+      if (filteredFunctionStats.length === 0) {
+        return new Response(
+          JSON.stringify({
+            error: `No functions found matching the name '${filterName}'.`,
+          }),
+          {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+    }
+
+    const deployedFunctions = filteredFunctionStats.filter(
       (stats) => stats.status === "deployed",
     );
-    const undeployedFunctions = functionStats.filter(
+    const undeployedFunctions = filteredFunctionStats.filter(
       (stats) => stats.status === "undeployed",
     );
-    const pausedFunctions = functionStats.filter(
+    const pausedFunctions = filteredFunctionStats.filter(
       (stats) => stats.status === "paused",
     );
     const isEventingFunctionsHealthy =
@@ -122,8 +173,6 @@ async function runHealthCheck(span: Span, url: URL): Promise<Response> {
     const currentTimestamp = new Date();
     currentTimestamp.setHours(currentTimestamp.getHours() + 2);
     const formattedTimestamp = currentTimestamp.toISOString();
-
-    const showDetailed = url.searchParams.get("detailed") === "true";
 
     const response: any = {
       timestamp: formattedTimestamp,
@@ -134,7 +183,7 @@ async function runHealthCheck(span: Span, url: URL): Promise<Response> {
           : "Potential Issue(s)",
       },
       uptime: getUptime(),
-      functions: functionStats.map((stats) => {
+      functions: filteredFunctionStats.map((stats) => {
         const baseInfo = {
           name: stats.name,
           status: stats.status,
@@ -158,14 +207,14 @@ async function runHealthCheck(span: Span, url: URL): Promise<Response> {
         }
       }),
       summary: {
-        total: functionList.length,
+        total: filteredFunctionStats.length,
         deployed: deployedFunctions.length,
         undeployed: undeployedFunctions.length,
         paused: pausedFunctions.length,
       },
     };
 
-    if (showDetailed) {
+    if (showDetailed === "true") {
       response.detailedEventingMetrics = deployedFunctions.map((stats) => ({
         name: stats.name,
         backlog: stats.backlog,
@@ -189,6 +238,8 @@ async function runHealthCheck(span: Span, url: URL): Promise<Response> {
       undeployedCount: undeployedFunctions.length,
       pausedCount: pausedFunctions.length,
       timestamp: formattedTimestamp,
+      filterName: filterName || "none",
+      showDetailed: showDetailed,
     });
     return new Response(responseJson, {
       status: isApplicationHealthy && isEventingFunctionsHealthy ? 200 : 503,
