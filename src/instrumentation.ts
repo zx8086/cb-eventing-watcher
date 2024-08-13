@@ -27,6 +27,8 @@ import {
   BatchLogRecordProcessor,
 } from "@opentelemetry/sdk-logs";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
+import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
+
 import * as api from "@opentelemetry/api-logs";
 import { config } from "$config";
 
@@ -92,8 +94,12 @@ const sdk = new NodeSDK({
     getNodeAutoInstrumentations({
       "@opentelemetry/instrumentation-aws-lambda": { enabled: false },
       "@opentelemetry/instrumentation-fs": { enabled: false },
+      "@opentelemetry/instrumentation-winston": { enabled: false },
     }),
-    // new WinstonInstrumentation({ enabled: true }),
+    new WinstonInstrumentation({
+      enabled: true,
+      disableLogSending: true,
+    }),
   ],
 });
 
