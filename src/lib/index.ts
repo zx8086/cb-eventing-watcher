@@ -1,4 +1,5 @@
 /* src/lib/index.ts */
 
-export * from "./database";
-export * from "./healthCheck";
+import { startHealthCheckServer, setApplicationStatus } from "./healthCheck";
+
+export { startHealthCheckServer, setApplicationStatus };

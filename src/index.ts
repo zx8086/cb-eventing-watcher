@@ -2,13 +2,8 @@
 
 import cron from "node-cron";
 import { config } from "$config";
-import { log, error, warn, debug } from "$utils";
-import {
-  startHealthCheckServer,
-  setApplicationStatus,
-  updateFunctionStatus,
-  removeOutdatedFunctions,
-} from "$lib/index.ts";
+import { log, error, warn, debug, getUptime, initializeUptime } from "$utils";
+import { startHealthCheckServer, setApplicationStatus } from "$lib/index.ts";
 import {
   getFunctionList,
   checkFunctionStatus,
@@ -26,8 +21,9 @@ let cronJob: cron.ScheduledTask | null = null;
 let healthServer: Server | null = null;
 let isShuttingDown = false;
 
-// Add a startup timestamp
+// Add a startup timestamp and initialize uptime
 const startupTimestamp = Date.now();
+initializeUptime();
 
 async function checkEventingService(): Promise<void> {
   log("Running checkEventingService...");
@@ -37,7 +33,7 @@ async function checkEventingService(): Promise<void> {
       functionCount: functionList.length,
     });
 
-    removeOutdatedFunctions(functionList);
+    const functionStatuses = [];
 
     for (const functionName of functionList) {
       try {
@@ -121,6 +117,7 @@ async function checkEventingService(): Promise<void> {
             function: functionName,
             timeoutCount: failureStats.timeout_count,
           });
+
           await sendSlackAlert(
             `Eventing Function: ${functionName} has timeouts detected`,
             {
@@ -133,11 +130,15 @@ async function checkEventingService(): Promise<void> {
           );
         }
 
-        updateFunctionStatus(
-          functionName,
-          functionHealthy ? "success" : "error",
-          statusMessage,
-        );
+        // Instead of updating function status, add it to an object
+        functionStatuses.push({
+          name: functionName,
+          status: functionHealthy ? "success" : "error",
+          message: statusMessage,
+          executionStats,
+          failureStats,
+          dcpBacklog,
+        });
 
         debug(`Eventing Function: ${functionName} check completed`, {
           function: functionName,
@@ -153,11 +154,14 @@ async function checkEventingService(): Promise<void> {
           function: functionName,
           error: errorMessage,
         });
-        updateFunctionStatus(
-          functionName,
-          "error",
-          `Error checking function: ${errorMessage}`,
-        );
+
+        // Add error status to our collection
+        functionStatuses.push({
+          name: functionName,
+          status: "error",
+          message: `Error checking function: ${errorMessage}`,
+        });
+
         await sendSlackAlert(
           `Error checking Couchbase function: ${functionName}`,
           {
@@ -165,13 +169,18 @@ async function checkEventingService(): Promise<void> {
             functionName: functionName,
             additionalContext: {
               error: errorMessage,
-              stage: "Eventing Function Check",
+              check: "Eventing Check",
             },
           },
         );
       }
     }
+
     log("Finished checking all the Eventing Functions");
+
+    // You might want to do something with functionStatuses here,
+    // such as storing it for the health check to use later
+
     setApplicationStatus(true);
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
@@ -196,7 +205,7 @@ function startScheduler(): void {
     checkEventingService,
     {
       scheduled: true,
-      timezone: "CET",
+      // timezone: "CET",
     },
   );
   log("Cron job scheduled successfully");
@@ -227,17 +236,14 @@ async function gracefulShutdown(signal: string) {
     }
 
     // Perform any other cleanup tasks here
-    // For example, closing database connections, etc.
 
     log("Graceful shutdown completed");
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
     error(`Error during graceful shutdown: ${errorMessage}`);
   } finally {
-    const shutdownDuration = Date.now() - startupTimestamp;
-    log(
-      `Application ran for ${shutdownDuration / 1000} seconds before shutdown`,
-    );
+    const uptime = getUptime();
+    log(`Application ran for ${uptime} before shutdown`);
     log("Exiting process");
     process.exit(0);
   }
@@ -279,12 +285,21 @@ async function startApplication() {
     // Start the scheduler
     startScheduler();
 
+    const startupTimestamp = Date.now();
+    const date = new Date(startupTimestamp);
+    // Offset by 2 hours (2 hours * 60 minutes * 60 seconds * 1000 milliseconds)
+    date.setTime(date.getTime() + 2 * 60 * 60 * 1000);
+    const isoString = date.toISOString();
+
+    console.log(isoString);
+
     await sendSlackAlert("Couchbase Eventing Watcher started", {
       severity: AlertSeverity.INFO,
       additionalContext: {
-        cronSchedule: config.application.CRON_SCHEDULE,
+        "Cron Schedule": config.application.CRON_SCHEDULE,
         pid: process.pid,
-        startupTimestamp: new Date(startupTimestamp).toISOString(),
+        "Start Time": isoString,
+        // "Start Time": new Date(startupTimestamp).toISOString(),
       },
     });
 

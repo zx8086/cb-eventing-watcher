@@ -1,21 +1,14 @@
 /* src/lib/healthCheck.ts */
 
-import type { Server } from "bun";
-import { log, error, initializeUptime, getUptime } from "$utils/index";
-import { getLatestFunctionStatuses } from "$lib/index";
-import { getFunctionStats } from "$services";
-import { trace, context, SpanStatusCode } from "@opentelemetry/api";
+import { log, error, getUptime } from "$utils";
+import { getFunctionList, getFunctionStats } from "$services";
+import { trace, SpanStatusCode } from "@opentelemetry/api";
 import { config } from "$config";
 import { meter } from "../instrumentation";
 
 const tracer = trace.getTracer("health-check-server");
 
 let isApplicationHealthy = true;
-
-let lastLoggedResponse: string | null = null;
-let lastLoggedTime = 0;
-
-initializeUptime();
 
 // Create metrics
 const dcpBacklogGauge = meter.createObservableGauge(
@@ -40,7 +33,7 @@ export function setApplicationStatus(healthy: boolean) {
 
 export function startHealthCheckServer(
   port: number = config.application.HEALTH_CHECK_PORT,
-): Server {
+) {
   const server = Bun.serve({
     port: port,
     fetch(req) {
@@ -69,179 +62,129 @@ export function startHealthCheckServer(
   });
   log(`Health Check Server started on ${server.url}`);
 
-  setInterval(() => {
-    tracer.startActiveSpan("scheduled_health_check", async (span) => {
-      try {
-        await runHealthCheck(span);
-      } catch (err) {
-        handleError(span, err as Error);
-      } finally {
-        span.end();
-      }
-    });
-  }, config.application.HEALTH_CHECK_INTERVAL);
-
   return server;
 }
 
 async function runHealthCheck(span: trace.Span): Promise<Response> {
-  let latestStatuses;
   try {
-    latestStatuses = await tracer.startActiveSpan(
-      "getLatestFunctionStatuses",
-      async (childSpan) => {
-        const statuses = await getLatestFunctionStatuses();
-        childSpan.setStatus({ code: SpanStatusCode.OK });
-        childSpan.end();
-        return statuses;
-      },
+    const functionList = await getFunctionList();
+    const functionStats = await Promise.all(
+      functionList.map(async (functionName) => {
+        try {
+          const stats = await getFunctionStats(functionName);
+          return { ...stats, name: functionName };
+        } catch (err) {
+          error(`Error fetching stats for function ${functionName}`, {
+            error: err,
+          });
+          return { name: functionName, status: "error", error: String(err) };
+        }
+      }),
     );
-  } catch (err) {
-    error("Error fetching latest function statuses", { error: err });
-    latestStatuses = [];
-  }
 
-  log("Latest function statuses", { statuses: JSON.stringify(latestStatuses) });
+    const validFunctionStats = functionStats.filter(
+      (stats) => stats.status !== "error",
+    );
+    const errorFunctions = functionStats.filter(
+      (stats) => stats.status === "error",
+    );
 
-  const successes = latestStatuses.filter(
-    (status) => status && status.status === "success",
-  );
-  const failures = latestStatuses.filter(
-    (status) => status && status.status === "error",
-  );
-  const isEventingFunctionsHealthy = failures.length === 0;
+    const successes = validFunctionStats.filter(
+      (stats) => stats.status === "deployed",
+    );
+    const failures = validFunctionStats.filter(
+      (stats) => stats.status !== "deployed",
+    );
+    const isEventingFunctionsHealthy =
+      failures.length === 0 && errorFunctions.length === 0;
 
-  // Fetch DCP backlog and execution stats for each function
-  const functionStats = await Promise.all(
-    latestStatuses.map(async (status) => {
-      if (!status || !status.function_name) {
-        error("Invalid status object", { status: JSON.stringify(status) });
-        return null;
-      }
-      try {
-        log(`Fetching stats for function: ${status.function_name}`);
-        const stats = await getFunctionStats(status.function_name);
-        log(`Received stats for function: ${status.function_name}`, {
-          stats: JSON.stringify(stats),
-        });
-        return { functionName: status.function_name, stats };
-      } catch (err) {
-        error(`Error fetching stats for function ${status.function_name}`, {
-          error: err,
-        });
-        return null;
-      }
-    }),
-  );
-
-  // Filter out null values
-  const validFunctionStats = functionStats.filter(Boolean);
-
-  log("Valid function stats", { stats: JSON.stringify(validFunctionStats) });
-
-  // Record metrics
-  dcpBacklogGauge.addCallback((observer) => {
-    validFunctionStats.forEach(({ functionName, stats }) => {
-      if (stats && typeof stats.dcp_backlog === "number") {
-        observer.observe(stats.dcp_backlog, { functionName });
-        log(`Recorded DCP backlog for ${functionName}: ${stats.dcp_backlog}`);
-      } else {
-        log(`Missing or invalid DCP backlog for ${functionName}`, {
-          stats: JSON.stringify(stats),
-        });
-      }
+    // Record metrics (unchanged)
+    dcpBacklogGauge.addCallback((observer) => {
+      validFunctionStats.forEach((stats) => {
+        if (stats && typeof stats.dcp_backlog === "number") {
+          observer.observe(stats.dcp_backlog, { functionName: stats.name });
+        }
+      });
     });
-  });
 
-  executionStatsGauge.addCallback((observer) => {
-    validFunctionStats.forEach(({ functionName, stats }) => {
-      if (stats && stats.execution_stats) {
-        const execStats = stats.execution_stats;
-        [
-          "on_update_success",
-          "on_update_failure",
-          "on_delete_success",
-          "on_delete_failure",
-        ].forEach((metric) => {
-          if (typeof execStats[metric] === "number") {
-            observer.observe(execStats[metric], { functionName, metric });
-            log(`Recorded ${metric} for ${functionName}: ${execStats[metric]}`);
-          } else {
-            log(`Missing or invalid ${metric} for ${functionName}`, {
-              execStats: JSON.stringify(execStats),
-            });
-          }
-        });
-      } else {
-        log(`Missing or invalid execution stats for ${functionName}`, {
-          stats: JSON.stringify(stats),
-        });
-      }
+    executionStatsGauge.addCallback((observer) => {
+      validFunctionStats.forEach((stats) => {
+        if (stats && stats.execution_stats) {
+          const execStats = stats.execution_stats;
+          [
+            "on_update_success",
+            "on_update_failure",
+            "on_delete_success",
+            "on_delete_failure",
+          ].forEach((metric) => {
+            if (typeof execStats[metric] === "number") {
+              observer.observe(execStats[metric], {
+                functionName: stats.name,
+                metric,
+              });
+            }
+          });
+        }
+      });
     });
-  });
 
-  span.setAttribute("eventing_functions.healthy", isEventingFunctionsHealthy);
-  span.setAttribute("application.healthy", isApplicationHealthy);
-  span.setAttribute("successful_functions", successes.length);
-  span.setAttribute("failed_functions", failures.length);
+    span.setAttribute("eventing_functions.healthy", isEventingFunctionsHealthy);
+    span.setAttribute("application.healthy", isApplicationHealthy);
+    span.setAttribute("successful_functions", successes.length);
+    span.setAttribute(
+      "failed_functions",
+      failures.length + errorFunctions.length,
+    );
 
-  const response = {
-    timestamp: new Date().toISOString(),
-    uptime: getUptime(),
-    application_status: isApplicationHealthy ? "Healthy" : "Unhealthy",
-    eventing_functions_status: isEventingFunctionsHealthy
-      ? "Healthy"
-      : "Unhealthy",
-    details: {
-      successes,
-      failures,
-    },
-    metrics: {
-      dcp_backlog: validFunctionStats.map(({ functionName, stats }) => ({
-        functionName,
-        backlog: stats.dcp_backlog,
+    const response = {
+      Status: {
+        Watcher: isApplicationHealthy ? "OK" : "Potential Issues",
+        Eventing: isEventingFunctionsHealthy ? "OK " : "Potential Issues",
+      },
+      Uptime: getUptime(),
+      Functions: [
+        ...validFunctionStats.map((stats) => ({
+          name: stats.name,
+          status: stats.status,
+          success: stats.success,
+          failure: stats.failure,
+          backlog: stats.backlog,
+          timeout: stats.timeout,
+        })),
+        ...errorFunctions.map((stats) => ({
+          name: stats.name,
+          status: "error",
+          error: stats.error,
+        })),
+      ],
+      "Detailed Eventing Metrics": validFunctionStats.map((stats) => ({
+        name: stats.name,
+        dcp_backlog: stats.dcp_backlog,
+        execution_stats: stats.execution_stats,
       })),
-      execution_stats: validFunctionStats.map(({ functionName, stats }) => ({
-        functionName,
-        on_update_success: stats.execution_stats.on_update_success,
-        on_update_failure: stats.execution_stats.on_update_failure,
-        on_delete_success: stats.execution_stats.on_delete_success,
-        on_delete_failure: stats.execution_stats.on_delete_failure,
-      })),
-    },
-  };
+    };
 
-  const responseJson = JSON.stringify(response, null, 2);
-  const now = Date.now();
+    const responseJson = JSON.stringify(response, null, 2);
 
-  if (
-    responseJson !== lastLoggedResponse ||
-    now - lastLoggedTime > config.application.HEALTH_CHECK_LOG_INTERVAL
-  ) {
-    log("Health check results", {
+    span.setStatus({ code: SpanStatusCode.OK });
+    log("Health check completed", {
       traceId: span.spanContext().traceId,
       spanId: span.spanContext().spanId,
-      healthCheckResults: responseJson,
+      applicationStatus: response.Status.Application,
+      eventingFunctionsStatus: response.Status["Eventing Functions"],
+      successCount: successes.length,
+      failureCount: failures.length,
+      errorCount: errorFunctions.length,
     });
 
-    lastLoggedResponse = responseJson;
-    lastLoggedTime = now;
+    return new Response(responseJson, {
+      status: isApplicationHealthy && isEventingFunctionsHealthy ? 200 : 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    handleError(span, err as Error);
+    return new Response("Internal Server Error", { status: 500 });
   }
-
-  span.setStatus({ code: SpanStatusCode.OK });
-  log("Health check completed", {
-    traceId: span.spanContext().traceId,
-    spanId: span.spanContext().spanId,
-    applicationStatus: response.application_status,
-    eventingFunctionsStatus: response.eventing_functions_status,
-    successCount: successes.length,
-    failureCount: failures.length,
-  });
-
-  return new Response(responseJson, {
-    status: isApplicationHealthy ? 200 : 503,
-    headers: { "Content-Type": "application/json" },
-  });
 }
 
 function handleError(span: trace.Span, err: Error) {
