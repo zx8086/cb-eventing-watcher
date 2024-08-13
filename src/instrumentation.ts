@@ -33,7 +33,7 @@ import * as api from "@opentelemetry/api-logs";
 import { config } from "$config";
 
 // Set up diagnostics logging
-diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
 
 // Create a shared resource
 const resource = new Resource({
@@ -121,4 +121,7 @@ process.on("SIGTERM", () => {
 });
 
 export const otelSDK = sdk;
-export const meter = metrics.getMeter("couchbase-eventing-metrics");
+export const meter = metrics.getMeter(
+  config.openTelemetry.SERVICE_NAME,
+  config.openTelemetry.SERVICE_VERSION,
+);

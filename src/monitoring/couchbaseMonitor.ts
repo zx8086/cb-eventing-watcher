@@ -6,7 +6,7 @@ import {
   checkExecutionStats,
   checkFailureStats,
   checkDcpBacklogSize,
-} from "../services/couchbaseServices";
+} from "$services";
 import {
   recordFunctionStatus,
   recordExecutionStats,

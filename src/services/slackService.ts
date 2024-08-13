@@ -1,4 +1,4 @@
-// src/services/slackService.ts
+/* src/services/slackService.ts */
 
 import {
   IncomingWebhook,
@@ -10,7 +10,7 @@ import { log, error } from "$utils/index";
 
 const slackWebhook = new IncomingWebhook(config.messaging.SLACK_WEBHOOK_URL);
 
-const colorMap = {
+const colorMap: Record<AlertSeverity, string> = {
   [AlertSeverity.INFO]: "#36a64f", // Green
   [AlertSeverity.WARNING]: "#ffa500", // Orange
   [AlertSeverity.ERROR]: "#ff0000", // Red
@@ -46,7 +46,7 @@ export async function sendSlackAlert(
   };
 
   if (functionName) {
-    payload.attachments[0].blocks.push({
+    payload.attachments?.[0]?.blocks?.push({
       type: "section",
       fields: [
         {
@@ -65,7 +65,7 @@ export async function sendSlackAlert(
         text: `*${key}:*\n${JSON.stringify(value, null, 2)}`,
       })),
     };
-    payload.attachments[0].blocks.push(contextBlock);
+    payload.attachments?.[0]?.blocks?.push(contextBlock);
   }
 
   try {
