@@ -55,7 +55,7 @@ export function startHealthCheckServer(
           span.setAttribute("http.method", req.method);
           span.setAttribute("http.url", url.pathname);
           if (url.pathname === "/health") {
-            return await runHealthCheck(span);
+            return await runHealthCheck(span, url);
           }
           span.setStatus({ code: SpanStatusCode.ERROR, message: "Not Found" });
           log("Not Found", {
@@ -77,7 +77,7 @@ export function startHealthCheckServer(
   return server;
 }
 
-async function runHealthCheck(span: Span): Promise<Response> {
+async function runHealthCheck(span: Span, url: URL): Promise<Response> {
   try {
     const functionList = await getFunctionList();
     const functionStats = await Promise.all(
@@ -118,12 +118,14 @@ async function runHealthCheck(span: Span): Promise<Response> {
     );
     const isEventingFunctionsHealthy =
       undeployedFunctions.length === 0 && pausedFunctions.length === 0;
-    // Record metrics (unchanged)
-    // ... (keep the existing metric recording code)
+
     const currentTimestamp = new Date();
     currentTimestamp.setHours(currentTimestamp.getHours() + 2);
     const formattedTimestamp = currentTimestamp.toISOString();
-    const response = {
+
+    const showDetailed = url.searchParams.get("detailed") === "true";
+
+    const response: any = {
       timestamp: formattedTimestamp,
       status: {
         watcher: isApplicationHealthy ? "OK" : "Potential Issue(s)",
@@ -155,7 +157,16 @@ async function runHealthCheck(span: Span): Promise<Response> {
           return baseInfo;
         }
       }),
-      detailedEventingMetrics: deployedFunctions.map((stats) => ({
+      summary: {
+        total: functionList.length,
+        deployed: deployedFunctions.length,
+        undeployed: undeployedFunctions.length,
+        paused: pausedFunctions.length,
+      },
+    };
+
+    if (showDetailed) {
+      response.detailedEventingMetrics = deployedFunctions.map((stats) => ({
         name: stats.name,
         backlog: stats.backlog,
         success: stats.success,
@@ -164,14 +175,9 @@ async function runHealthCheck(span: Span): Promise<Response> {
         execution_stats: stats.execution_stats,
         failure_stats: stats.failure_stats,
         lastChecked: formattedTimestamp,
-      })),
-      summary: {
-        total: functionList.length,
-        deployed: deployedFunctions.length,
-        undeployed: undeployedFunctions.length,
-        paused: pausedFunctions.length,
-      },
-    };
+      }));
+    }
+
     const responseJson = JSON.stringify(response, null, 2);
     span.setStatus({ code: SpanStatusCode.OK });
     log("Health check completed", {
