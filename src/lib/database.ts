@@ -3,7 +3,8 @@
 import { Database } from "bun:sqlite";
 import { log, error } from "$utils/index";
 import { trace, SpanStatusCode, SpanKind } from "@opentelemetry/api";
-import { sendSlackAlert, AlertSeverity } from "$services/slackService";
+import { AlertSeverity } from "$services/slackService";
+import { sendAlert } from "$services/alertRoutingService";
 
 const tracer = trace.getTracer("sqlite-database");
 
@@ -170,7 +171,6 @@ export async function updateFunctionStatus(
               alertMessage = `Function ${functionName} has recovered and is now operating normally`;
             }
           } else {
-            // Default case, should not occur with current status types
             severity = AlertSeverity.INFO;
           }
 
@@ -183,7 +183,7 @@ export async function updateFunctionStatus(
             timestamp: new Date(timestamp).toISOString(),
           });
 
-          await sendSlackAlert(alertMessage, {
+          await sendAlert(alertMessage, {
             severity: severity,
             functionName: functionName,
             additionalContext: {

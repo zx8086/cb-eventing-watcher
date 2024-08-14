@@ -10,10 +10,10 @@ import {
   checkExecutionStats,
   checkFailureStats,
   checkDcpBacklogSize,
-  sendSlackAlert,
   AlertSeverity,
 } from "$services";
 import { getEventingMetrics } from "./monitoring/couchbaseMonitor";
+import { sendAlert } from "./services/alertRoutingService";
 import type { Server } from "bun";
 import {
   updateFunctionStatus,
@@ -209,7 +209,7 @@ async function checkEventingService(): Promise<void> {
       timestamp: new Date().toISOString(),
     });
     setApplicationStatus(false);
-    await sendSlackAlert("Error checking Couchbase Eventing Functions", {
+    await sendAlert("Error checking Couchbase Eventing Functions", {
       severity: AlertSeverity.ERROR,
       additionalContext: {
         error: errorMessage,
@@ -331,7 +331,7 @@ async function startApplication() {
 
     console.log(isoString);
 
-    await sendSlackAlert("Couchbase Eventing Watcher started", {
+    await sendAlert("Couchbase Eventing Watcher started", {
       severity: AlertSeverity.INFO,
       additionalContext: {
         "Cron Schedule": config.eventing.CRON_SCHEDULE,
@@ -372,7 +372,7 @@ async function startApplication() {
       error: errorMessage,
       timestamp: new Date().toISOString(),
     });
-    await sendSlackAlert("Failed to start or run Couchbase Eventing Watcher", {
+    await sendAlert("Failed to start or run Couchbase Eventing Watcher", {
       severity: AlertSeverity.ERROR,
       additionalContext: { error: errorMessage, pid: process.pid },
     });

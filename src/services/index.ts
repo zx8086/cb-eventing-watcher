@@ -2,3 +2,4 @@
 
 export * from "./couchbaseServices";
 export * from "./slackService";
+export * from "./teamsService";
