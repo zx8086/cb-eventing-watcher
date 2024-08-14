@@ -35,6 +35,7 @@ export const config: Config = {
     COUCHBASE_PASSWORD: getEnvOrThrow("COUCHBASE_PASSWORD"),
     SERVICE_CHECK_INTERVAL: getEnvNumberOrThrow("SERVICE_CHECK_INTERVAL"),
     DCP_BACKLOG_THRESHOLD: getEnvNumberOrThrow("DCP_BACKLOG_THRESHOLD"),
+    CRON_SCHEDULE: getEnvOrThrow("CRON_SCHEDULE"),
   },
   openTelemetry: {
     SERVICE_NAME: getEnvOrThrow("SERVICE_NAME"),

@@ -226,7 +226,7 @@ function startScheduler(): void {
     { timestamp: new Date().toISOString() },
   );
   cronJob = cron.schedule(
-    config.application.CRON_SCHEDULE,
+    config.eventing.CRON_SCHEDULE,
     async () => {
       log("RUNNING SCHEDULED CHECK...", {
         timestamp: new Date().toISOString(),
@@ -336,7 +336,7 @@ async function startApplication() {
     await sendSlackAlert("Couchbase Eventing Watcher started", {
       severity: AlertSeverity.INFO,
       additionalContext: {
-        "Cron Schedule": config.application.CRON_SCHEDULE,
+        "Cron Schedule": config.eventing.CRON_SCHEDULE,
         pid: process.pid,
         "Start Time": isoString,
       },

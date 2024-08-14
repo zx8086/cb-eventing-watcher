@@ -153,16 +153,25 @@ export async function updateFunctionStatus(
         // Check for status changes
         if (latestStatus && latestStatus.status !== status) {
           let alertMessage = `Function ${functionName} status changed from ${latestStatus.status} to ${status}`;
-          let severity = AlertSeverity.INFO;
+          let severity: AlertSeverity;
 
-          if (status === "error" || status === "paused") {
+          // Determine severity based on new status
+          if (status === "undeployed" || status === "error") {
+            severity = AlertSeverity.ERROR;
+          } else if (status === "paused") {
             severity = AlertSeverity.WARNING;
-          } else if (
-            status === "deployed" &&
-            (latestStatus.status === "error" ||
-              latestStatus.status === "paused")
-          ) {
-            alertMessage = `Function ${functionName} has recovered and is now operating normally`;
+          } else if (status === "deployed") {
+            severity = AlertSeverity.INFO;
+            if (
+              latestStatus.status === "error" ||
+              latestStatus.status === "undeployed" ||
+              latestStatus.status === "paused"
+            ) {
+              alertMessage = `Function ${functionName} has recovered and is now operating normally`;
+            }
+          } else {
+            // Default case, should not occur with current status types
+            severity = AlertSeverity.INFO;
           }
 
           log(`Sending alert for ${functionName}:`, {
@@ -173,6 +182,7 @@ export async function updateFunctionStatus(
             newStatus: status,
             timestamp: new Date(timestamp).toISOString(),
           });
+
           await sendSlackAlert(alertMessage, {
             severity: severity,
             functionName: functionName,

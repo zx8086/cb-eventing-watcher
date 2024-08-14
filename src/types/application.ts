@@ -16,6 +16,7 @@ export interface EventingConfig {
   COUCHBASE_PASSWORD: string;
   SERVICE_CHECK_INTERVAL: number;
   DCP_BACKLOG_THRESHOLD: number;
+  CRON_SCHEDULE: string;
 }
 
 export interface OpenTelemetryConfig {

@@ -140,6 +140,9 @@ async function runHealthCheck(span: Span, url: URL): Promise<Response> {
       }),
     );
 
+    // Sort functionStats by name
+    functionStats.sort((a, b) => a.name.localeCompare(b.name));
+
     let filteredFunctionStats = functionStats;
     if (filterName) {
       filteredFunctionStats = functionStats.filter((stats) =>
@@ -178,9 +181,7 @@ async function runHealthCheck(span: Span, url: URL): Promise<Response> {
       timestamp: formattedTimestamp,
       status: {
         watcher: isApplicationHealthy ? "OK" : "Potential Issue(s)",
-        eventing: isEventingFunctionsHealthy
-          ? "No Issue(s)"
-          : "Potential Issue(s)",
+        eventing: isEventingFunctionsHealthy ? "OK" : "Potential Issue(s)",
       },
       uptime: getUptime(),
       functions: filteredFunctionStats.map((stats) => {
