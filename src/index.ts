@@ -13,7 +13,7 @@ import {
   sendSlackAlert,
   AlertSeverity,
 } from "$services";
-import { getEventingMetrics } from "$monitoring";
+import { getEventingMetrics } from "./monitoring/couchbaseMonitor";
 import type { Server } from "bun";
 import {
   updateFunctionStatus,

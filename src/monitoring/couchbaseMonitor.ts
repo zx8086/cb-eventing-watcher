@@ -12,7 +12,7 @@ import {
   recordExecutionStats,
   recordFailureStats,
   recordDcpBacklog,
-} from "$metrics";
+} from "$metrics/couchbaseMetrics";
 import { log, warn } from "$utils";
 
 export async function getEventingMetrics() {

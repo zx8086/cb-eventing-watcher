@@ -2,7 +2,7 @@
 
 import type { Config } from "$types";
 
-function getEnvOrThrow(key: string): string {
+function getEnvOrThrow(key: string): any {
   const value = Bun.env[key];
   if (value === undefined) {
     throw new Error(`Required environment variable ${key} is not set`);
