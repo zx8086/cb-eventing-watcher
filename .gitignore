@@ -178,7 +178,8 @@ dist
 # Finder (MacOS) folder config
 .DS_Store
 
-
-src/db
+# Bun SQLite DB
 src/db/health_check.sqlite
-.zed/*
+
+# zed IDE
+.zed
