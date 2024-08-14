@@ -33,7 +33,7 @@ import * as api from "@opentelemetry/api-logs";
 import { config } from "$config";
 
 // Set up diagnostics logging
-diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 
 // Create a shared resource
 const resource = new Resource({
@@ -78,13 +78,14 @@ const otlpMetricReader = new PeriodicExportingMetricReader({
 // Set up MeterProvider
 const meterProvider = new MeterProvider({
   resource: resource,
-  readers: [consoleMetricReader, otlpMetricReader],
+  // readers: [consoleMetricReader, otlpMetricReader],
+  readers: [otlpMetricReader],
 });
 
-// Set this MeterProvider to be global to the app being instrumented. -> For multiple Metric Readers
+// Set this MeterProvider to be global to the app being instrumented. -> For multiple Metrics Readers
 metrics.setGlobalMeterProvider(meterProvider);
 
-// Node SDK for OpenTelemetry without metricReader
+// Node SDK for OpenTelemetry without metricReader -> Metric Reader defined outside of this SDK so we can use multiple Metrics Readers
 const sdk = new NodeSDK({
   resource: resource,
   traceExporter,

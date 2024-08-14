@@ -114,10 +114,21 @@ export interface AlertOptions {
 
 // Eventing Metrics
 
+// export interface FunctionStats {
+//   status: "deployed" | "undeployed";
+//   success: number;
+//   failure: number;
+//   backlog: number;
+//   timeout: number;
+// }
+
 export interface FunctionStats {
-  status: "deployed" | "undeployed";
+  status: "deployed" | "undeployed" | "paused" | "deploying" | "undeploying";
   success: number;
   failure: number;
   backlog: number;
   timeout: number;
+  dcp_backlog?: number;
+  execution_stats?: ExecutionStats;
+  failure_stats?: FailureStats;
 }

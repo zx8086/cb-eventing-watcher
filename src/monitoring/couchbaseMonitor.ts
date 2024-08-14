@@ -12,10 +12,10 @@ import {
   recordExecutionStats,
   recordFailureStats,
   recordDcpBacklog,
-} from "../metrics/couchbaseMetrics";
+} from "$metrics";
 import { log, warn } from "$utils";
 
-export async function monitorCouchbaseFunctions() {
+export async function getEventingMetrics() {
   try {
     const functionList = await getFunctionList();
     log(`Retrieved ${functionList.length} functions for Metrics monitoring`);
@@ -46,7 +46,7 @@ export async function monitorCouchbaseFunctions() {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
         warn(
-          `Error in Couchbase Eventing Metrics monitoring for function ${functionName}: ${errorMessage}`,
+          `Error in Eventing Metrics monitoring for function ${functionName}: ${errorMessage}`,
           {
             functionName,
             error: errorMessage,
@@ -56,13 +56,13 @@ export async function monitorCouchbaseFunctions() {
     }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    warn("Error in Couchbase Eventing Metrics monitoring:", {
+    warn("Error in Eventing Metrics monitoring:", {
       error: errorMessage,
     });
   }
 }
 
-export function startCouchbaseMonitoring(intervalMs: number = 60000) {
-  log("Starting Couchbase Eventing Metrics monitoring...");
-  setInterval(monitorCouchbaseFunctions, intervalMs);
-}
+// export function startCouchbaseMonitoring(intervalMs: number = 60000) {
+//   log("Starting Eventing Metrics monitoring...");
+//   setInterval(monitorCouchbaseFunctions, intervalMs);
+// }

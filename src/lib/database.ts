@@ -3,6 +3,7 @@
 import { Database } from "bun:sqlite";
 import { log, error } from "$utils/index";
 import { trace, SpanStatusCode, SpanKind } from "@opentelemetry/api";
+import { sendSlackAlert, AlertSeverity } from "$services/slackService";
 
 const tracer = trace.getTracer("sqlite-database");
 
@@ -98,10 +99,11 @@ db.run(`
   )
 `);
 
-export function updateFunctionStatus(
+export async function updateFunctionStatus(
   functionName: string,
-  status: "success" | "error",
+  status: "deployed" | "undeployed" | "paused" | "error",
   message: string,
+  previousStatus: string | null,
 ) {
   return tracer.startActiveSpan(
     "updateFunctionStatus",
@@ -116,20 +118,136 @@ export function updateFunctionStatus(
     async (span) => {
       try {
         const timestamp = Date.now();
+
+        log(`Updating status for ${functionName}:`, {
+          functionName,
+          previousStatus,
+          newStatus: status,
+          message,
+          timestamp: new Date(timestamp).toISOString(),
+        });
+
+        // Get the most recent status from the database
+        const latestStatus = await getLatestFunctionStatus(functionName);
+        log(`Latest status from DB for ${functionName}:`, {
+          functionName,
+          latestStatus: JSON.stringify(latestStatus),
+          timestamp: new Date().toISOString(),
+        });
+
+        // Insert the new status
         await db.run(
           `
-        INSERT OR REPLACE INTO function_status (function_name, status, message, timestamp)
-        VALUES (?, ?, ?, ?)
-      `,
+          INSERT INTO function_status (function_name, status, message, timestamp)
+          VALUES (?, ?, ?, ?)
+        `,
           [functionName, status, message, timestamp],
         );
 
-        log(`Function status updated in database: ${functionName} - ${status}`);
+        log(`Function status updated in database: ${functionName}`, {
+          functionName,
+          status,
+          timestamp: new Date(timestamp).toISOString(),
+        });
+
+        // Check for status changes
+        if (latestStatus && latestStatus.status !== status) {
+          let alertMessage = `Function ${functionName} status changed from ${latestStatus.status} to ${status}`;
+          let severity = AlertSeverity.INFO;
+
+          if (status === "error" || status === "paused") {
+            severity = AlertSeverity.WARNING;
+          } else if (
+            status === "deployed" &&
+            (latestStatus.status === "error" ||
+              latestStatus.status === "paused")
+          ) {
+            alertMessage = `Function ${functionName} has recovered and is now operating normally`;
+          }
+
+          log(`Sending alert for ${functionName}:`, {
+            functionName,
+            alertMessage,
+            severity,
+            previousStatus: latestStatus.status,
+            newStatus: status,
+            timestamp: new Date(timestamp).toISOString(),
+          });
+          await sendSlackAlert(alertMessage, {
+            severity: severity,
+            functionName: functionName,
+            additionalContext: {
+              previousStatus: latestStatus.status,
+              currentStatus: status,
+              message: message,
+              timestamp: new Date(timestamp).toISOString(),
+            },
+          });
+        } else {
+          log(`No status change for ${functionName}`, {
+            functionName,
+            status,
+            timestamp: new Date(timestamp).toISOString(),
+          });
+        }
+
         span.setStatus({ code: SpanStatusCode.OK });
         span.setAttribute("event.outcome", "success");
       } catch (err) {
         error(`Error updating function status in database: ${functionName}`, {
           error: (err as Error).message,
+          timestamp: new Date().toISOString(),
+        });
+        span.recordException(err as Error);
+        span.setStatus({
+          code: SpanStatusCode.ERROR,
+          message: (err as Error).message,
+        });
+        span.setAttribute("event.outcome", "failure");
+        throw err;
+      } finally {
+        span.end();
+      }
+    },
+  );
+}
+
+export async function getLatestFunctionStatus(functionName: string) {
+  return tracer.startActiveSpan(
+    "getLatestFunctionStatus",
+    {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        "transaction.type": "db",
+        "function.name": functionName,
+      },
+    },
+    async (span) => {
+      try {
+        const result = await db.query(
+          `
+          SELECT status, message, timestamp
+          FROM function_status
+          WHERE function_name = ?
+          ORDER BY timestamp DESC
+          LIMIT 1
+        `,
+          [functionName],
+        );
+
+        log(`Retrieved latest status for ${functionName}:`, {
+          functionName,
+          result: JSON.stringify(result),
+          timestamp: new Date().toISOString(),
+        });
+
+        span.setStatus({ code: SpanStatusCode.OK });
+        span.setAttribute("event.outcome", "success");
+        return result[0] || null;
+      } catch (err) {
+        error(`Error getting latest function status for ${functionName}`, {
+          error: (err as Error).message,
+          timestamp: new Date().toISOString(),
         });
         span.recordException(err as Error);
         span.setStatus({
@@ -157,12 +275,20 @@ export function getLatestFunctionStatuses() {
     async (span) => {
       try {
         const results = await db.query(`
-        SELECT function_name, status, message, timestamp
-        FROM function_status
-        GROUP BY function_name
-        HAVING MAX(timestamp)
-        ORDER BY timestamp DESC
-      `);
+          SELECT function_name, status, message, timestamp
+          FROM function_status fs1
+          WHERE timestamp = (
+            SELECT MAX(timestamp)
+            FROM function_status fs2
+            WHERE fs2.function_name = fs1.function_name
+          )
+          ORDER BY function_name, timestamp DESC
+        `);
+
+        log("Retrieved latest function statuses:", {
+          results: JSON.stringify(results),
+          timestamp: new Date().toISOString(),
+        });
 
         span.setStatus({ code: SpanStatusCode.OK });
         span.setAttribute("event.outcome", "success");
@@ -170,6 +296,7 @@ export function getLatestFunctionStatuses() {
       } catch (err) {
         error("Error getting latest function statuses", {
           error: (err as Error).message,
+          timestamp: new Date().toISOString(),
         });
         span.recordException(err as Error);
         span.setStatus({
@@ -206,12 +333,16 @@ export function removeOutdatedFunctions(currentFunctions: string[]) {
           currentFunctions,
         );
 
-        log("Removed outdated functions from database");
+        log("Removed outdated functions from database", {
+          currentFunctions,
+          timestamp: new Date().toISOString(),
+        });
         span.setStatus({ code: SpanStatusCode.OK });
         span.setAttribute("event.outcome", "success");
       } catch (err) {
         error("Error removing outdated functions from database", {
           error: (err as Error).message,
+          timestamp: new Date().toISOString(),
         });
         span.recordException(err as Error);
         span.setStatus({
