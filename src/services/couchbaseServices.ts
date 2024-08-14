@@ -5,10 +5,11 @@ import { log, error } from "$utils";
 import type {
   CouchbaseFunction,
   FunctionStatus,
+  FunctionStats,
   ExecutionStats,
   FailureStats,
   DcpBacklogSize,
-} from "../types/index.ts";
+} from "$types";
 import {
   trace,
   context,
@@ -23,16 +24,16 @@ import {
 } from "@opentelemetry/semantic-conventions";
 
 // Updated FunctionStats interface
-export interface FunctionStats {
-  status: "deployed" | "undeployed" | "paused" | "deploying" | "undeploying";
-  success: number;
-  failure: number;
-  backlog: number;
-  timeout: number;
-  dcp_backlog: number;
-  execution_stats: ExecutionStats;
-  failure_stats: FailureStats;
-}
+// export interface FunctionStats {
+//   status: "deployed" | "undeployed" | "paused" | "deploying" | "undeploying";
+//   success: number;
+//   failure: number;
+//   backlog: number;
+//   timeout: number;
+//   dcp_backlog: number;
+//   execution_stats: ExecutionStats;
+//   failure_stats: FailureStats;
+// }
 
 const tracer = trace.getTracer(
   config.openTelemetry.SERVICE_NAME,

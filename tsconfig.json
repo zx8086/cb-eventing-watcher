@@ -37,7 +37,9 @@
       "$types": ["src/types"],
       "$types/*": ["src/types/*"],
       "$metrics": ["src/metrics"],
-      "$metrics/*": ["src/metrics/*"]
+      "$metrics/*": ["src/metrics/*"],
+      "$monitoring": ["src/monitoring"],
+      "$monitoring/*": ["src/monitoring/*"]
     },
     "types": ["bun-types"],
 
