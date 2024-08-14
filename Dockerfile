@@ -1,36 +1,44 @@
-# Use the official Bun image
-# See all versions at https://hub.docker.com/r/oven/bun/tags
+#Dockerfile
+
+# use the official Bun image
 FROM oven/bun:1 AS base
 WORKDIR /usr/src/app
 
-# Install dependencies into temp directory
+# Create logs and db directories with the correct permissions
+RUN mkdir -p /usr/src/app/logs /usr/src/app/src/db && chown -R bun:bun /usr/src/app/logs /usr/src/app/src/db
+
+# install dependencies into temp directory
 FROM base AS install
 RUN mkdir -p /temp/dev
 COPY package.json bun.lockb /temp/dev/
 RUN cd /temp/dev && bun install --frozen-lockfile
 
-# Install with --production (exclude devDependencies)
+# install with --production (exclude devDependencies)
 RUN mkdir -p /temp/prod
 COPY package.json bun.lockb /temp/prod/
 RUN cd /temp/prod && bun install --frozen-lockfile --production
 
-# Copy node_modules from temp directory
+# copy node_modules from temp directory
+# then copy all (non-ignored) project files into the image
 FROM base AS prerelease
 COPY --from=install /temp/dev/node_modules node_modules
 COPY . .
 
-# Optional: Tests & build
+# [optional] tests & build
 ENV NODE_ENV=production
 RUN bun test
-RUN bun run build
+RUN bun build ./src/index.ts --target=node --outdir ./dist
 
-# Copy production dependencies and source code into final image
+# copy production dependencies and source code into final image
 FROM base AS release
 COPY --from=install /temp/prod/node_modules node_modules
-COPY --from=prerelease /usr/src/app/index.ts .
+COPY --from=prerelease /usr/src/app/dist/ ./dist/
 COPY --from=prerelease /usr/src/app/package.json .
 
-# Run the app
+# Set ownership of app directory to bun user
+RUN chown -R bun:bun /usr/src/app
+
+# run the app
 USER bun
 EXPOSE 3000/tcp
-ENTRYPOINT [ "bun", "run", "index.ts" ]
+ENTRYPOINT [ "bun", "run", "dist/index.js" ]

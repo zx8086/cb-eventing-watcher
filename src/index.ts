@@ -317,9 +317,7 @@ async function startApplication() {
     timestamp: new Date().toISOString(),
   });
   try {
-    healthServer = startHealthCheckServer(
-      config.application.HEALTH_CHECK_PORT || 8080,
-    );
+    healthServer = startHealthCheckServer();
 
     startScheduler();
     log("Scheduler started", { timestamp: new Date().toISOString() });

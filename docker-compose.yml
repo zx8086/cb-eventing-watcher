@@ -1,3 +1,5 @@
+# docker-compose.yml
+
 version: "3.8"
 
 services:
@@ -6,10 +8,9 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "${HEALTH_CHECK_PORT}:3000" # Maps the port from .env to the container's port 3000
     env_file:
       - .env
-    # Optionally define additional environment variables or override existing ones
     environment:
       - NODE_ENV=production
       - HEALTH_CHECK_PORT

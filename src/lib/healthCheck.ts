@@ -43,11 +43,10 @@ export function setApplicationStatus(healthy: boolean) {
   isApplicationHealthy = healthy;
 }
 
-export function startHealthCheckServer(
-  port: number = config.application.HEALTH_CHECK_PORT,
-): Server {
+export function startHealthCheckServer(port: number = 3000): Server {
   const server = Bun.serve({
     port: port,
+    hostname: "0.0.0.0",
     fetch(req: Request) {
       return tracer.startActiveSpan("health_check", async (span: Span) => {
         try {
@@ -72,7 +71,9 @@ export function startHealthCheckServer(
       });
     },
   });
-  log(`Health Check Server started on ${server.url}`);
+  log(
+    `Health Check Server started on http://${server.hostname}:${server.port}/`,
+  );
 
   return server;
 }
