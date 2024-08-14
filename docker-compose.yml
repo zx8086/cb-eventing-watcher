@@ -8,7 +8,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "${HEALTH_CHECK_PORT}:3000" # Maps the port from .env to the container's port 3000
+      - "${HEALTH_CHECK_PORT}:3000"
     env_file:
       - .env
     environment:
@@ -20,6 +20,7 @@ services:
       - LOG_LEVEL
       - LOG_MAX_SIZE
       - LOG_MAX_FILES
+      - ALERT_LEVEL
       - COUCHBASE_HOST
       - COUCHBASE_USERNAME
       - COUCHBASE_PASSWORD
@@ -34,3 +35,4 @@ services:
       - METRIC_READER_INTERVAL
       - CONSOLE_METRIC_READER_INTERVAL
       - SLACK_WEBHOOK_URL
+      - TEAMS_WEBHOOK_URL
