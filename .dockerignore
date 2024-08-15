@@ -13,3 +13,10 @@ helm-charts
 .editorconfig
 .idea
 coverage*
+
+src/db/health_check.sqlite
+
+# Testing
+src/__tests__
+.bun.test.js
+bun.test.js

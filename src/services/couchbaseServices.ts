@@ -23,18 +23,6 @@ import {
   SEMRESATTRS_DEPLOYMENT_ENVIRONMENT,
 } from "@opentelemetry/semantic-conventions";
 
-// Updated FunctionStats interface
-// export interface FunctionStats {
-//   status: "deployed" | "undeployed" | "paused" | "deploying" | "undeploying";
-//   success: number;
-//   failure: number;
-//   backlog: number;
-//   timeout: number;
-//   dcp_backlog: number;
-//   execution_stats: ExecutionStats;
-//   failure_stats: FailureStats;
-// }
-
 const tracer = trace.getTracer(
   config.openTelemetry.SERVICE_NAME,
   config.openTelemetry.SERVICE_VERSION,
