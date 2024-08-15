@@ -28,7 +28,6 @@ export const config: Config = {
     LOG_LEVEL: getEnvOrThrow("LOG_LEVEL"),
     LOG_MAX_SIZE: getEnvOrThrow("LOG_MAX_SIZE"),
     LOG_MAX_FILES: getEnvOrThrow("LOG_MAX_FILES"),
-    ALERT_LEVEL: getEnvOrThrow("ALERT_LEVEL"),
   },
   eventing: {
     COUCHBASE_HOST: getEnvOrThrow("COUCHBASE_HOST"),
@@ -51,6 +50,7 @@ export const config: Config = {
     ),
   },
   messaging: {
+    ALERT_TYPE: getEnvOrThrow("ALERT_TYPE"),
     SLACK_WEBHOOK_URL: getEnvOrThrow("SLACK_WEBHOOK_URL"),
     TEAMS_WEBHOOK_URL: getEnvOrThrow("TEAMS_WEBHOOK_URL"),
   },

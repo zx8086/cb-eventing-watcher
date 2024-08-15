@@ -10,7 +10,7 @@ export async function sendAlert(
   message: string,
   options: AlertOptions = {},
 ): Promise<boolean> {
-  const alertLevel = parseInt(config.application.ALERT_LEVEL, 10);
+  const alertLevel = parseInt(config.messaging.ALERT_TYPE, 10);
 
   log(`Sending alert with level ${alertLevel}: ${message}`, {
     alertLevel,

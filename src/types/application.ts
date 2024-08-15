@@ -8,7 +8,6 @@ export interface ApplicationConfig {
   LOG_LEVEL: string;
   LOG_MAX_SIZE: string;
   LOG_MAX_FILES: string;
-  ALERT_LEVEL: string;
 }
 
 export interface EventingConfig {
@@ -32,6 +31,7 @@ export interface OpenTelemetryConfig {
 }
 
 export interface MessagingConfig {
+  ALERT_TYPE: string;
   SLACK_WEBHOOK_URL?: string;
   TEAMS_WEBHOOK_URL?: string;
 }
