@@ -183,3 +183,9 @@ src/db/health_check.sqlite
 
 # zed IDE
 .zed
+
+# Testing
+
+src/__tests__
+.bun.test.js
+bun.test.js
