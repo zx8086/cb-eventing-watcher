@@ -55,7 +55,7 @@ async function checkEventingService(): Promise<void> {
         let functionStatus = status.app.composite_status;
         let statusMessage = `Eventing Function: ${functionName} ${functionStatus}`;
 
-        // Detailed logging of function state
+        // Detailed logging of Eventing function state
         log(`Detailed state for ${functionName}:`, {
           functionName,
           status: functionStatus,
@@ -119,7 +119,7 @@ async function checkEventingService(): Promise<void> {
           timestamp: new Date().toISOString(),
         });
 
-        // Get the most recent status from the database
+        // Get the most recent deployment status from the database
         const latestStatus = await getLatestFunctionStatus(functionName);
         const previousStatus = latestStatus ? latestStatus.status : null;
 
@@ -133,7 +133,7 @@ async function checkEventingService(): Promise<void> {
           timestamp: new Date().toISOString(),
         });
 
-        // Update function status in the database
+        // Update Eventing function status in the database
         await updateFunctionStatus(
           functionName,
           functionStatus as "deployed" | "undeployed" | "paused" | "error",
@@ -383,7 +383,7 @@ async function startApplication() {
   }
 }
 
-// Main start the Watcher Service
+// Start the Watcher Service
 startApplication().catch((err) => {
   console.error("Unhandled error in startApplication:", err);
   process.exit(1);

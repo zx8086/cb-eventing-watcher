@@ -20,3 +20,4 @@ src/db/health_check.sqlite
 src/__tests__
 .bun.test.js
 bun.test.js
+cb_functions
