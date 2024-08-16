@@ -1,7 +1,5 @@
 /* src/index.ts */
 
-/* src/index.ts */
-
 import cron from "node-cron";
 import { config } from "$config";
 import { log, error, warn, debug, getUptime, initializeUptime } from "$utils";
