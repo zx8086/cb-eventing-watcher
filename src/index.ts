@@ -1,5 +1,7 @@
 /* src/index.ts */
 
+/* src/index.ts */
+
 import cron from "node-cron";
 import { config } from "$config";
 import { log, error, warn, debug, getUptime, initializeUptime } from "$utils";
@@ -10,10 +12,10 @@ import {
   checkExecutionStats,
   checkFailureStats,
   checkDcpBacklogSize,
+  sendSlackAlert,
   AlertSeverity,
 } from "$services";
 import { getEventingMetrics } from "./monitoring/couchbaseMonitor";
-import { sendAlert } from "./services/alertRoutingService";
 import type { Server } from "bun";
 import {
   updateFunctionStatus,
@@ -209,7 +211,7 @@ async function checkEventingService(): Promise<void> {
       timestamp: new Date().toISOString(),
     });
     setApplicationStatus(false);
-    await sendAlert("Error checking Couchbase Eventing Functions", {
+    await sendSlackAlert("Error checking Couchbase Eventing Functions", {
       severity: AlertSeverity.ERROR,
       additionalContext: {
         error: errorMessage,
@@ -226,7 +228,7 @@ function startScheduler(): void {
     { timestamp: new Date().toISOString() },
   );
   cronJob = cron.schedule(
-    config.eventing.CRON_SCHEDULE,
+    config.application.CRON_SCHEDULE,
     async () => {
       log("RUNNING SCHEDULED CHECK...", {
         timestamp: new Date().toISOString(),
@@ -317,7 +319,9 @@ async function startApplication() {
     timestamp: new Date().toISOString(),
   });
   try {
-    healthServer = startHealthCheckServer();
+    healthServer = startHealthCheckServer(
+      config.application.HEALTH_CHECK_PORT || 8080,
+    );
 
     startScheduler();
     log("Scheduler started", { timestamp: new Date().toISOString() });
@@ -331,10 +335,10 @@ async function startApplication() {
 
     console.log(isoString);
 
-    await sendAlert("Couchbase Eventing Watcher started", {
+    await sendSlackAlert("Couchbase Eventing Watcher started", {
       severity: AlertSeverity.INFO,
       additionalContext: {
-        "Cron Schedule": config.eventing.CRON_SCHEDULE,
+        "Cron Schedule": config.application.CRON_SCHEDULE,
         pid: process.pid,
         "Start Time": isoString,
       },
@@ -372,7 +376,7 @@ async function startApplication() {
       error: errorMessage,
       timestamp: new Date().toISOString(),
     });
-    await sendAlert("Failed to start or run Couchbase Eventing Watcher", {
+    await sendSlackAlert("Failed to start or run Couchbase Eventing Watcher", {
       severity: AlertSeverity.ERROR,
       additionalContext: { error: errorMessage, pid: process.pid },
     });
