@@ -47,6 +47,7 @@ export function startHealthCheckServer(port: number = 3000): Server {
   const server = Bun.serve({
     port: port,
     hostname: "0.0.0.0",
+    idleTimeout: config.application.IDLE_TIMEOUT || 30,
     fetch(req: Request) {
       return tracer.startActiveSpan("health_check", async (span: Span) => {
         try {
@@ -72,7 +73,7 @@ export function startHealthCheckServer(port: number = 3000): Server {
     },
   });
   log(
-    `Health Check Server started on http://${server.hostname}:${server.port}/`,
+    `Health Check Server started on http://${server.hostname}:${server.port}/ with idle timeout: ${config.application.IDLE_TIMEOUT || 30} seconds`,
   );
 
   return server;

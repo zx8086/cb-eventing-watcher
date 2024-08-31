@@ -4,13 +4,14 @@
   "module": "src/index.ts",
   "type": "module",
   "scripts": {
-    "start": "bun --inspect-wait run src/index.ts",
+    "start": "NODE_TLS_REJECT_UNAUTHORIZED=0 bun run src/index.ts",
     "build": "bun build ./src/index.ts --outdir ./dist"
   },
   "devDependencies": {
     "@types/bun": "^1.1.6",
     "@types/node": "^22.1.0",
     "@types/node-cron": "^3.0.7",
+    "@types/node-fetch": "^2.6.11",
     "bun-types": "latest",
     "typescript": "^5.0.4"
   },
@@ -29,6 +30,7 @@
     "@slack/webhook": "^7.0.2",
     "axios": "^1.7.3",
     "node-cron": "^3.0.3",
+    "node-fetch": "2",
     "winston": "^3.14.1",
     "winston-daily-rotate-file": "^5.0.0"
   },

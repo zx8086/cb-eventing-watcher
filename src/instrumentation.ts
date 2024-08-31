@@ -33,7 +33,7 @@ import * as api from "@opentelemetry/api-logs";
 import { config } from "$config";
 
 // Set up diagnostics logging
-diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.DEBUG);
+diag.setLogger(new DiagConsoleLogger(), DiagLogLevel.INFO);
 
 // Create a shared resource
 const resource = new Resource({
@@ -99,7 +99,7 @@ const sdk = new NodeSDK({
     }),
     new WinstonInstrumentation({
       enabled: true,
-      disableLogSending: true,
+      disableLogSending: false,
     }),
   ],
 });

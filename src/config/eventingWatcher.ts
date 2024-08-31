@@ -24,6 +24,7 @@ export const config: Config = {
     HEALTH_CHECK_PORT: getEnvNumberOrThrow("HEALTH_CHECK_PORT"),
     HEALTH_CHECK_LOG_INTERVAL: getEnvNumberOrThrow("HEALTH_CHECK_LOG_INTERVAL"),
     HEALTH_CHECK_INTERVAL: getEnvNumberOrThrow("HEALTH_CHECK_INTERVAL"),
+    IDLE_TIMEOUT: getEnvNumberOrThrow("IDLE_TIMEOUT"),
     CRON_SCHEDULE: getEnvOrThrow("CRON_SCHEDULE"),
     LOG_LEVEL: getEnvOrThrow("LOG_LEVEL"),
     LOG_MAX_SIZE: getEnvOrThrow("LOG_MAX_SIZE"),
